@@ -79,8 +79,8 @@ const result = {
   latencyMs: inferMs,
   loadMs,
   note: webgpu.gpu
-    ? "navigator.gpu exists but no usable adapter. Gemma 2 2B via WebLLM cannot start without WebGPU. DistilBART-CNN-6-6 ran locally through transformers.js."
-    : "This VM has no WebGPU (navigator.gpu is missing in Chromium, including SwiftShader flags). Gemma 2 2B via WebLLM cannot run here. DistilBART-CNN-6-6 ran locally through transformers.js.",
+    ? "navigator.gpu exists but no usable adapter. Gemma 2 2B via WebLLM needs WebGPU, so it did not start. DistilBART-CNN-6-6 ran locally through transformers.js."
+    : "This VM has no WebGPU (navigator.gpu is missing in Chromium, including SwiftShader flags). Gemma 2 2B via WebLLM did not start. DistilBART-CNN-6-6 ran locally through transformers.js.",
   from,
   to,
   transcript,

@@ -1,0 +1,18 @@
+{
+  "engine": "distilbart",
+  "model": "Xenova/distilbart-cnn-6-6",
+  "library": "@huggingface/transformers",
+  "text": "Blender Foundation presents a Peach open movie in a forest. Three small birds share a branch. Two flying squirrels steal an apple and knock the rabbit flat for sport.",
+  "latencyMs": 572,
+  "loadMs": 4867,
+  "note": "This VM has no WebGPU (navigator.gpu is missing in Chromium, including SwiftShader flags). Gemma 2 2B via WebLLM did not start. DistilBART-CNN-6-6 ran locally through transformers.js.",
+  "from": 3,
+  "to": 16,
+  "transcript": "Blender Foundation presents a Peach open movie. Dawn in a forest. Three small birds share a branch. A huge rabbit, Big Buck Bunny, wakes and stretches in the grass. The birds flutter off. Two flying squirrels drop into the clearing. The rodents steal an apple and knock the rabbit flat for sport.",
+  "webgpu": {
+    "gpu": false,
+    "adapter": false
+  },
+  "gemmaAttempted": false,
+  "gemmaRan": false
+}

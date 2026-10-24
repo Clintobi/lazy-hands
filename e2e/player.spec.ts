@@ -131,7 +131,8 @@ test.describe("Lazy Hands", () => {
     }
     await showBrightFrame(page);
     await expect(page.getByTestId("miss-card")).toContainText(/You missed/);
-    await expect(page.getByTestId("miss-card")).not.toContainText(/cannot|no captions/i);
+    await expect(page.getByTestId("miss-text")).not.toContainText(/i cannot|no captions|as an ai/i);
+    await expect(page.getByTestId("miss-note")).toContainText(/DistilBART|Gemma|extractive/i);
     await page.screenshot({ path: "docs/screenshots/miss-card-1280.png", fullPage: false });
   });
 
