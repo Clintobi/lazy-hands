@@ -624,7 +624,7 @@ export function Studio() {
                         <p className="mt-1 max-w-2xl text-[0.98rem] leading-6" data-testid="miss-text">
                           {miss?.text}
                         </p>
-                        <p className="mt-2 text-[11px] uppercase tracking-[0.14em] text-[var(--walnut)]" data-testid="miss-note">
+                        <p className="mt-2 text-[11px] text-[var(--walnut)]" data-testid="miss-note">
                           {miss?.note} · {Math.round(miss?.latencyMs ?? 0)} ms
                         </p>
                       </>

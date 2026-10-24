@@ -54,7 +54,7 @@ async function playFrom(t, ms) {
 
 await page.evaluate(() => window.__lazyHands?.lockAutoPropose());
 await show(6);
-await page.waitForTimeout(10000);
+await page.waitForTimeout(12000);
 await page.getByRole("button", { name: "Got it" }).click().catch(() => undefined);
 await page.waitForTimeout(1500);
 await playFrom(4.2, 2800);
@@ -110,7 +110,7 @@ if (existsSync("docs/MODEL_RUN.json")) {
     window.__lazyHands?.missKey();
   });
 }
-await page.waitForTimeout(16000);
+await page.waitForTimeout(18000);
 await playFrom(26, 4000);
 await show(30);
 await page.waitForTimeout(9000);
