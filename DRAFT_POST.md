@@ -24,13 +24,17 @@ This is a submission for the Hacktoberfest Open-Source AI Challenge: Week 3, Slo
 
 [Clinton: how approval-with-a-thumb is different from a settings wall]
 
+[Clinton: the Chrome extension on any HTML5 video, not only the bundled player]
+
+[Clinton: the local approve CLI, and why a coding agent should wait]
+
 ## Demo
 
 [Clinton: link the 60-90s video]
 
 [Clinton: link the live preview or repo]
 
-[Clinton: optional stills: idle / gesture / miss card / approval mid-hold]
+[Clinton: optional stills: idle / gesture / miss card / approval mid-hold / generic page / command waiting]
 
 ## Code
 
@@ -38,9 +42,13 @@ This is a submission for the Hacktoberfest Open-Source AI Challenge: Week 3, Slo
 
 ## How I Built It
 
-[Clinton: MediaPipe in the tab]
+[Clinton: MediaPipe in the tab, then in an offscreen extension page]
 
 [Clinton: watching vs approval_pending, and why a hold ring]
+
+[Clinton: finding the main video on YouTube-shaped and Netflix-shaped pages]
+
+[Clinton: localhost WebSocket bridge, and what is refused by default]
 
 [Clinton: Gemma via WebLLM, then the honest fallbacks]
 

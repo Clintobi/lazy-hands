@@ -12,7 +12,14 @@
     "measure": "vitest run tests/measure.test.ts",
     "test:e2e": "playwright test",
     "demo": "node scripts/record-demo.mjs",
-    "model-run": "node scripts/run-local-summary.mjs"
+    "demo:any": "node scripts/record-any-page-demo.mjs",
+    "model-run": "node scripts/run-local-summary.mjs",
+    "ext:build": "node scripts/build-extension.mjs",
+    "icons": "node scripts/make-icons.mjs",
+    "bridge": "node bin/lazyhands.mjs serve"
+  },
+  "bin": {
+    "lazyhands": "./bin/lazyhands.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.1",
@@ -23,7 +30,8 @@
     "next": "16.4.3",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "tailwind-merge": "^3.7.0"
+    "tailwind-merge": "^3.7.0",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
@@ -31,7 +39,9 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/ws": "^8.18.2",
     "@vitest/coverage-v8": "^3.2.7",
+    "esbuild": "^0.25.12",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "playwright": "^1.64.1",

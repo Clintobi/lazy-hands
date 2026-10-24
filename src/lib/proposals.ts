@@ -4,9 +4,13 @@ export const ACTION_KINDS = [
   "toggle_captions",
   "summarise_recent",
   "note_todo",
+  "agent_command",
+  "page_confirm",
 ] as const;
 
 export type ActionKind = (typeof ACTION_KINDS)[number];
+
+export type ProposalSource = "player" | "bridge" | "page";
 
 export type Proposal = {
   id: string;
@@ -14,6 +18,8 @@ export type Proposal = {
   title: string;
   detail: string;
   payload: Record<string, unknown>;
+  source: ProposalSource;
+  destructive: boolean;
 };
 
 export type ProposalContext = {
@@ -47,6 +53,8 @@ export function phraseProposal(kind: ActionKind, ctx: Partial<ProposalContext> =
       return {
         id: id(kind),
         kind,
+        source: "player",
+        destructive: false,
         title: `Skip the intro (0:00 to ${clock(until)})?`,
         detail: "A local guess from the caption track. Nothing leaves this tab.",
         payload: { until },
@@ -56,6 +64,8 @@ export function phraseProposal(kind: ActionKind, ctx: Partial<ProposalContext> =
       return {
         id: id(kind),
         kind,
+        source: "player",
+        destructive: false,
         title: `Add a bookmark at ${clock(time)}?`,
         detail: "Saved in this session only. No account, no cloud.",
         payload: { at: time },
@@ -64,6 +74,8 @@ export function phraseProposal(kind: ActionKind, ctx: Partial<ProposalContext> =
       return {
         id: id(kind),
         kind,
+        source: "player",
+        destructive: false,
         title: ctx.captionsOn ? "Turn captions off?" : "Turn captions on?",
         detail: "The next line stays on the picture, not on a server.",
         payload: { on: !ctx.captionsOn },
@@ -72,6 +84,8 @@ export function phraseProposal(kind: ActionKind, ctx: Partial<ProposalContext> =
       return {
         id: id(kind),
         kind,
+        source: "player",
+        destructive: false,
         title: "Summarise the last stretch?",
         detail: "Two or three sentences from the captions you already have.",
         payload: { seconds: Math.min(300, Math.max(20, time)) },
@@ -80,6 +94,8 @@ export function phraseProposal(kind: ActionKind, ctx: Partial<ProposalContext> =
       return {
         id: id(kind),
         kind,
+        source: "player",
+        destructive: false,
         title: "Pin a note for later?",
         detail: "A sandboxed scribble in this tab. It never emails, posts, or buys.",
         payload: {
@@ -87,7 +103,43 @@ export function phraseProposal(kind: ActionKind, ctx: Partial<ProposalContext> =
           at: time,
         },
       };
+    case "agent_command":
+      return phraseAgentCommand(String(ctx.videoTime ?? ""), "");
+    case "page_confirm":
+      return phrasePageConfirm("Confirm");
   }
+}
+
+export function phraseAgentCommand(command: string, cwd: string): Proposal {
+  return {
+    id: id("agent_command"),
+    kind: "agent_command",
+    source: "bridge",
+    destructive: looksDestructiveCommand(command),
+    title: "Run this command?",
+    detail: cwd ? `${command} · ${cwd}` : command,
+    payload: { command, cwd },
+  };
+}
+
+export function phrasePageConfirm(label: string, selector = "", destructive = false): Proposal {
+  return {
+    id: id("page_confirm"),
+    kind: "page_confirm",
+    source: "page",
+    destructive,
+    title: destructive ? `Hold to confirm: ${label}` : `${label}?`,
+    detail: destructive
+      ? "This looks like it could change something. A flick will not click it."
+      : "A held thumb clicks the button. A held palm leaves it alone.",
+    payload: { label, selector, destructive },
+  };
+}
+
+export function looksDestructiveCommand(command: string): boolean {
+  return /\b(rm|sudo|dd|mkfs|shutdown|reboot|drop|delete|reset --hard|push --force|npm publish|kubectl delete)\b/i.test(
+    command,
+  );
 }
 
 export function pickProposal(ctx: ProposalContext): Proposal | null {

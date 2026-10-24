@@ -43,7 +43,8 @@ export type SessionState = {
 export type SessionEvent =
   | { type: "pose"; pose: "open_palm" | "thumbs_up" | "none"; dt: number }
   | { type: "swipe"; dir: "left" | "right" }
-  | { type: "propose"; proposal: Proposal }
+  | { type: "propose"; proposal: Proposal; force?: boolean }
+  | { type: "timeout_approval" }
   | { type: "face"; visible: boolean; dt: number; videoTime: number }
   | { type: "miss_key"; videoTime: number }
   | { type: "play" }
@@ -57,7 +58,8 @@ export type SessionEffect =
   | { type: "stamp"; label: string }
   | { type: "summarise"; from: number; to: number }
   | { type: "apply_proposal"; proposal: Proposal }
-  | { type: "log"; entry: ApprovalLogEntry };
+  | { type: "log"; entry: ApprovalLogEntry }
+  | { type: "decide"; proposal: Proposal; decision: "approved" | "rejected" };
 
 export function initialSession(now = 0): SessionState {
   return {
@@ -128,11 +130,31 @@ export function reduceSession(
     }
     case "propose": {
       if (next.mode === "approval_pending") break;
-      if (next.attention === "away") break;
+      if (next.attention === "away" && !event.force) break;
       next.mode = "approval_pending";
       next.approval = { proposal: event.proposal, hold: null };
       next.palmMs = 0;
       next.palmFired = false;
+      break;
+    }
+    case "timeout_approval": {
+      if (next.mode !== "approval_pending" || !next.approval) break;
+      const proposal = next.approval.proposal;
+      const entry: ApprovalLogEntry = {
+        at: now,
+        proposalId: proposal.id,
+        kind: proposal.kind,
+        title: proposal.title,
+        decision: "rejected",
+        gesture: "reject",
+        holdMs: 0,
+      };
+      next.log.unshift(entry);
+      effects.push({ type: "log", entry });
+      effects.push({ type: "decide", proposal, decision: "rejected" });
+      stamp("Timed out");
+      next.mode = "watching";
+      next.approval = null;
       break;
     }
     case "miss_key": {
@@ -232,6 +254,11 @@ export function reduceSession(
         };
         next.log.unshift(entry);
         effects.push({ type: "log", entry });
+        effects.push({
+          type: "decide",
+          proposal,
+          decision: intent === "approve" ? "approved" : "rejected",
+        });
         if (intent === "approve") {
           effects.push({ type: "apply_proposal", proposal });
           stamp("Approved");

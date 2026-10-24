@@ -1,51 +1,64 @@
 # Lazy Hands
 
-A one-screen, on-device film player for people who will not pick up the remote. The webcam reads your hands and your face in the tab. An open-weight model proposes a small action and waits. A thumbs-up held for about a second says yes. An open palm held for about a second says no.
+A private, on-device gesture layer for **any HTML5 video**, plus a held thumbs-up before an AI action runs. Camera, hands, face, and the recap stay on the machine you already paid for.
 
-This is a new entry for the [DEV Hacktoberfest Open-Source AI Challenge Week 3: Slow and Steady](https://dev.to/challenges/hacktoberfest-week3-2026-10-19). It is not [Couchmode by Maxim Bilan](https://github.com/maximbilan/Couchmode). That project is a laptop agent that shows its work on a television. This project is a private video player with gesture approval. Different job, different code.
+This is a new entry for the [DEV Hacktoberfest Open-Source AI Challenge Week 3: Slow and Steady](https://dev.to/challenges/hacktoberfest-week3-2026-10-19). It is not [Couchmode by Maxim Bilan](https://github.com/maximbilan/Couchmode).
 
-The product name lives in `src/lib/brand.ts`. Change it there if the title needs to move again.
+The product name lives in `src/lib/brand.ts`.
 
-## What it does
+## Two surfaces
 
-You play a local file with a `.vtt` track, or one of two bundled Blender trailers.
+1. **Web demo** at http://127.0.0.1:4521 (bundled Blender trailers) and `/watch` (a generic journal page that is not a special player).
+2. **Chrome extension** (Manifest V3) in `extension/`. Load it unpacked. The content script finds the main `<video>` on the page you are already watching.
 
-While you watch:
+## Gestures
 
-- A short open palm pauses or plays.
-- A swipe left or right skips ten seconds.
-- If you look away long enough, or press `M`, the app marks the time. When you come back it recaps the captions for that gap in two or three plain sentences.
-- A local open model may ask one sandboxed thing at a time: skip the intro, bookmark this moment, turn captions on, recap the last stretch, or pin a note. Those actions stay in the tab. They do not post, email, buy, or call a server.
+- Short open palm: play or pause the main video.
+- Swipe left or right: skip ten seconds.
+- Look away (after a face was seen) or press `M`: mark a gap. On return, recap from page captions or a transcript if one exists.
+- While an ask is on screen the machine is `approval_pending`. A short palm no longer pauses. A thumb held about 0.8s approves. A palm held about 0.8s refuses.
 
-While an ask is on screen the state machine is `approval_pending`, not `watching`. A short palm no longer pauses. A thumb held ~0.8 s approves. A palm held ~0.8 s refuses. A visible ring fills so a twitch cannot commit.
+Keyboard, if the camera is away: Space (watch mode), arrows, `Y` / `N` on the web player, `M` to mark a miss.
 
-Keyboard, if the camera is away: Space (watch mode only), arrows, `Y` hold to approve, `N` hold to refuse, `M` to mark a miss.
+## Gesture approval for AI actions
+
+The same hold ring covers three asks, one at a time:
+
+- In-page player asks: skip intro, captions, bookmark, recap, pin a note. Sandboxed. Nothing posts or buys.
+- Agent commands: a local WebSocket bridge on `127.0.0.1:4537` plus `lazyhands approve -- <command>`. The command waits. A held thumb runs it. A held palm or a timeout leaves it unrun.
+- Page confirm buttons: if a dialog exposes a clear Approve or Confirm, Lazy Hands may offer it. Destructive labels need the same hold. Chat `Send` is ignored. Nothing is clicked until a full thumbs-up.
 
 ## Why open models matter here
 
-The camera sees a living room. The captions can be a film you have not finished. A cloud API would ship both off-machine. Open weights in the browser keep the face, the hands, and the transcript on the device you already paid for. After the first weight download the recap still works on a train. There is no inference bill, and you can swap the engine in one file (`src/lib/summarize.ts`).
+A webcam pointed at a sofa, plus captions from a film you have not finished, should not go to a cloud API. Gemma 2 2B IT (q4) via WebLLM is the intended engine when WebGPU exists. This VM has no `navigator.gpu`, so DistilBART-CNN-6-6 through transformers.js is what actually ran. See [docs/MODEL_RUN.md](docs/MODEL_RUN.md).
 
-Closed APIs are faster to demo on a poster. They are the wrong tool for a webcam pointed at a sofa.
+## Load the unpacked extension
 
-## Models and licences
+```bash
+npm install
+npm run ext:build
+```
 
-| Piece | What we ship | Licence | Where it runs |
-| --- | --- | --- | --- |
-| Hand landmarker | MediaPipe Tasks Vision, `hand_landmarker.task` | Apache 2.0 (MediaPipe) | This tab |
-| Face detector | MediaPipe BlazeFace short range | Apache 2.0 (MediaPipe) | This tab |
-| Preferred LLM | Gemma 2 2B IT, q4, via WebLLM (`gemma-2-2b-it-q4f16_1-MLC`) | [Gemma Terms of Use](https://ai.google.dev/gemma/terms) (open weights) | This tab, WebGPU |
-| Fallback LLM | DistilBART-CNN-6-6 via transformers.js | Apache 2.0 | This tab, or Node |
-| Last resort | Extractive sentences from the `.vtt` | MIT, this repo | This tab, always |
-| Big Buck Bunny trailer | Re-encoded official 480p trailer | CC BY 3.0, Blender Foundation | `/samples/bunny` |
-| Sintel trailer | Re-encoded official 480p trailer | CC BY 3.0, Blender Foundation | `/samples/sintel` |
+1. Chrome → `chrome://extensions`
+2. Turn on Developer mode
+3. Load unpacked → choose the `extension/` folder in this repo
+4. Open the toolbar popup → Wake the camera
+5. Visit any page with an HTML5 video (YouTube, a local file tab, or http://127.0.0.1:4521/watch)
+6. For `file://` tabs, enable "Allow access to file URLs" on the extension card
 
-Gemma is the intended engine (and the honest entry for "Best Use of Gemma"). It needs WebGPU. This cloud VM has no `navigator.gpu` adapter, so WebLLM cannot start. The real measured fallback is DistilBART-CNN-6-6 through transformers.js. See [docs/MODEL_RUN.md](docs/MODEL_RUN.md). Extractive captions remain the last resort and the fast unit-test path. We do not pretend Gemma ran when it did not.
+The camera runs in an offscreen extension page. Poses are messaged to the content script. Nothing is uploaded.
 
-MediaPipe wasm is copied from `node_modules` on `npm install` (`scripts/copy-mediapipe.mjs`). The `.task` and `.tflite` files live in `public/models/mediapipe`.
+## Approval CLI
 
-Sample credits: `public/samples/CREDITS.md`.
+```bash
+npm run ext:build
+npm run bridge          # optional; approve will start it
+node bin/lazyhands.mjs approve -- echo ship-it
+```
 
-## Run it
+Hold a thumbs-up in the extension overlay or on `/watch`. A palm, or a timeout, prints `Refused` and the command does not run.
+
+## Run the web demo
 
 ```bash
 npm install
@@ -53,32 +66,49 @@ npx playwright install chromium
 npm run dev
 ```
 
-Open http://127.0.0.1:4521 and allow the camera, or use the keys.
+Open http://127.0.0.1:4521 or http://127.0.0.1:4521/watch
 
 ```bash
-npm test          # unit tests + measurements
-npm run test:e2e  # Playwright, fake camera stream
-npm run measure   # rewrite docs/MEASUREMENTS.md
+npm test
+npm run test:e2e
+npm run measure
 ```
 
-## Tests and numbers
+## What was actually tested
 
-Unit tests drive recorded 21-point hand fixtures, the watching / approval state machine, false-approval rate, VTT parsing, and the extractive recap.
+Tested here, in this repo:
 
-Playwright mocks `getUserMedia` with a canvas stream and drives `window.__lazyHands` so a CI runner does not need a sofa.
+- Unit tests for the content-script video picker on YouTube-shaped, Netflix-shaped, X-shaped, hidden, and iframe layouts
+- Caption harvest from textTracks, VTT, and YouTube-style DOM nodes
+- Confirm-button classifier (Approve in a dialog, ignore chat Send, mark Delete as destructive)
+- Approval bridge: approve, refuse, timeout, short-thumb false positive
+- Playwright: bundled player, `/watch` generic page, command-wait overlay
+- DistilBART recap (real). Gemma did not start (no WebGPU)
 
-Latest fixture numbers: [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md). Real on-device recap: [docs/MODEL_RUN.md](docs/MODEL_RUN.md). Limits: [docs/LIMITS.md](docs/LIMITS.md). Screenshots at 1280px sit in `docs/screenshots`. The 60 to 90s demo is `docs/demo/lazy-hands-demo.mp4`.
+Not tested live against production accounts:
 
-## Layout of the code
+- Logged-in Netflix (DRM player, custom captions)
+- YouTube's shadow DOM captions on a real watch page
+- Vimeo embeds inside a cross-origin iframe (the inner frame must be same-origin or the extension's `all_frames` script must be allowed)
+- ChatGPT or Claude confirmation dialogs on the live sites (the matcher is fixture-tested)
 
-- `src/lib/brand.ts` : name and tagline
-- `src/lib/gestures.ts` : palm, thumb, swipe
-- `src/lib/session.ts` : watching vs approval_pending, hold ring, miss key
-- `src/lib/proposals.ts` : closed set of local asks
-- `src/lib/summarize.ts` : Gemma, DistilBART, extractive
-- `src/lib/sandbox.ts` : the only place "actions" land
-- `src/components/studio.tsx` : the one screen
+Honest site map: [docs/LIMITS.md](docs/LIMITS.md).
 
-## Challenge notes
+## Models and licences
 
-Deadline: Mon 26 Oct 2026 07:59 WAT. This repository is the project. `DRAFT_POST.md` is a heading scaffold for Clinton's own words. The prose is not filled in.
+| Piece | What we ship | Licence | Where it runs |
+| --- | --- | --- | --- |
+| Hand landmarker | MediaPipe Tasks Vision | Apache 2.0 | Offscreen page or this tab |
+| Face detector | MediaPipe BlazeFace | Apache 2.0 | Offscreen page or this tab |
+| Preferred LLM | Gemma 2 2B IT q4 via WebLLM | Gemma Terms of Use | This machine, WebGPU |
+| Fallback | DistilBART-CNN-6-6 via transformers.js | Apache 2.0 | This machine |
+| Last resort | Extractive captions | MIT | This machine |
+| Big Buck Bunny / Sintel trailers | Official 480p, re-encoded | CC BY 3.0, Blender Foundation | `/samples` |
+
+## Layout
+
+- `src/lib` : gestures, session, video finder, captions, confirm matcher, bridge protocol
+- `src/extension` : MV3 background, offscreen camera, content script
+- `src/bridge` : localhost WebSocket + CLI
+- `src/app/watch` : generic page demo
+- `extension/` : packed files you load in Chrome

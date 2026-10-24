@@ -51,6 +51,7 @@ declare global {
       setMiss: (payload: SummaryResult & { from: number; to: number }) => void;
       dismissHint: () => void;
       lockAutoPropose: () => void;
+      ask?: (command: string) => void;
     };
   }
 }
@@ -695,7 +696,10 @@ export function Studio() {
               </label>
             </div>
             <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--walnut)]">
-              {sandbox.bookmarks.length} marks · {sandbox.notes.length} notes
+              {sandbox.bookmarks.length} marks · {sandbox.notes.length} notes ·{" "}
+              <a href="/watch" className="underline decoration-[var(--brass)] underline-offset-4">
+                Any page
+              </a>
             </p>
           </div>
 

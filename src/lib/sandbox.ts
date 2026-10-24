@@ -56,6 +56,9 @@ export function applyProposal(box: Sandbox, proposal: Proposal): Sandbox {
         text: String(proposal.payload.text ?? "Come back to this scene."),
       });
       break;
+    case "agent_command":
+    case "page_confirm":
+      break;
   }
 
   return next;
