@@ -1,0 +1,40 @@
+{
+  "name": "lazy-hands",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 4521 -H 0.0.0.0",
+    "build": "next build",
+    "start": "next start -p 4521 -H 0.0.0.0",
+    "lint": "eslint",
+    "postinstall": "node scripts/copy-mediapipe.mjs",
+    "test": "vitest run",
+    "measure": "vitest run tests/measure.test.ts",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.3.1",
+    "@mediapipe/tasks-vision": "^1.1.1",
+    "@mlc-ai/web-llm": "^0.2.86",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "next": "16.4.3",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "tailwind-merge": "^3.7.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@tailwindcss/turbopack": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^3.2.7",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.3",
+    "playwright": "^1.64.1",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vitest": "^3.2.7"
+  }
+}

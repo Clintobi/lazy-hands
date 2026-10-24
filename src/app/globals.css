@@ -1,0 +1,154 @@
+@import "tailwindcss";
+
+:root {
+  --paper: #efe2cc;
+  --cream: #fbf3e4;
+  --ink: #3b2a1c;
+  --rust: #b64a28;
+  --rust-deep: #8a341c;
+  --moss: #4d5a33;
+  --brass: #b07d32;
+  --walnut: #6a4024;
+  --ticket: #f3d9b0;
+  --background: var(--paper);
+  --foreground: var(--ink);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-display: var(--font-fraunces);
+  --font-sans: var(--font-nunito);
+}
+
+html,
+body {
+  background: var(--paper);
+  color: var(--ink);
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-nunito), "Nunito Sans", ui-sans-serif, sans-serif;
+  background-image:
+    radial-gradient(1200px 500px at 10% -10%, rgba(243, 217, 176, 0.55), transparent 55%),
+    linear-gradient(180deg, #f4e7d0 0%, #efe2cc 38%, #e7d3b4 100%);
+}
+
+.font-display {
+  font-family: var(--font-fraunces), "Fraunces", ui-serif, serif;
+}
+
+.film-frame {
+  border-left: 10px solid #5a351d;
+  border-right: 6px solid #4a2c18;
+  border-top: 8px solid #6a4024;
+  border-bottom: 18px solid #3f2614;
+  box-shadow: 0 18px 0 rgba(62, 40, 24, 0.12);
+}
+
+.gesture-stamp {
+  position: absolute;
+  left: 8%;
+  top: 18%;
+  rotate: -7deg;
+  border: 3px solid var(--rust);
+  color: var(--rust);
+  font-family: var(--font-fraunces), serif;
+  font-style: italic;
+  font-size: 2.4rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.15em 0.45em;
+  background: rgba(251, 243, 228, 0.72);
+  box-shadow: 3px 3px 0 rgba(182, 74, 40, 0.35);
+  animation: stamp-in 140ms ease-out;
+}
+
+@keyframes stamp-in {
+  from {
+    opacity: 0;
+    transform: scale(1.12);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.approval-card {
+  background: var(--cream);
+  border-top: 5px solid var(--brass);
+  border-radius: 0 0 16px 4px;
+  padding: 1.15rem 1.25rem 1.3rem;
+  box-shadow: 0 14px 0 rgba(62, 40, 24, 0.14);
+}
+
+.miss-card {
+  background: #fff6ea;
+  border-left: 5px solid var(--rust);
+  border-radius: 3px 22px 6px 3px;
+  padding: 1rem 1.2rem 1.15rem;
+  box-shadow: 7px 7px 0 var(--rust);
+  animation: miss-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes miss-in {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.ticket-rail::before {
+  content: "";
+  position: absolute;
+  inset: 12px auto 12px -7px;
+  width: 14px;
+  background: radial-gradient(circle at 3px 8px, var(--paper) 5px, transparent 6px) 0 0 / 14px 18px;
+  pointer-events: none;
+}
+
+.scrub {
+  appearance: none;
+  background: transparent;
+}
+
+.scrub::-webkit-slider-runnable-track {
+  height: 6px;
+  background: #d7c09a;
+  border-radius: 999px;
+}
+
+.scrub::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 18px;
+  margin-top: -6px;
+  background: var(--rust);
+  border: 2px solid #3b2a1c;
+  border-radius: 1px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  html,
+  body {
+    background: var(--paper);
+    color: var(--ink);
+  }
+}
