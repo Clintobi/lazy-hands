@@ -14,12 +14,12 @@ export type ConfirmCandidate = {
   score: number;
 };
 
-const APPROVE_EXACT =
-  /^(approve|confirm|allow|continue|accept|run|yes|ok|okay|execute|proceed|got it|do it)$/i;
+const APPROVE_EXACT = /^(approve|confirm|allow|execute|proceed)$/i;
+const WEAK_APPROVE = /^(yes|ok|okay|got it|continue|do it|run|accept)$/i;
 const APPROVE_PHRASE =
   /\b(approve|confirm|allow this|run (the )?command|continue|accept|yes,?\s+do it|execute)\b/i;
 const IGNORE =
-  /\b(cancel|dismiss|close|not now|later|no thanks|edit|copy|share|subscribe|sign in|log in|search)\b/i;
+  /\b(cancel|dismiss|close|not now|later|no thanks|edit|copy|share|subscribe|sign in|log in|search|accept (all )?cookies|reject all)\b/i;
 const DESTRUCTIVE =
   /\b(delete|remove|destroy|purchase|buy now|pay|send payment|transfer|drop database|format|shutdown|revoke|uninstall|overwrite|force push)\b/i;
 const CHAT_SEND = /^(send|submit)$/i;
@@ -33,8 +33,10 @@ export function classifyButton(button: ButtonShape): ConfirmCandidate | null {
   if (!label || button.disabled) return null;
   if (IGNORE.test(label) && !APPROVE_EXACT.test(label)) return null;
   if (CHAT_SEND.test(label) && !button.inDialog) return null;
+  if (WEAK_APPROVE.test(label) && !button.inDialog) return null;
 
-  const approve = APPROVE_EXACT.test(label) || (Boolean(button.inDialog) && APPROVE_PHRASE.test(label));
+  const approve =
+    APPROVE_EXACT.test(label) || (Boolean(button.inDialog) && (APPROVE_PHRASE.test(label) || WEAK_APPROVE.test(label)));
   const destructive = isDestructiveLabel(label);
   if (!approve && !destructive) return null;
   if (!approve && destructive && !button.inDialog) return null;

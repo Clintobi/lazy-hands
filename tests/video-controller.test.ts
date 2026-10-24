@@ -77,6 +77,23 @@ describe("VideoController on several page shapes", () => {
     expect(recap.toLowerCase()).not.toMatch(/cannot/);
   });
 
+  it("drives an iframe-shaped Vimeo embed when it is the only player", () => {
+    const embed = fakeVideo({
+      id: "vimeo-embed",
+      className: "vp-video",
+      clientWidth: 640,
+      clientHeight: 360,
+      inIframe: true,
+      hostHint: "player.vimeo.com",
+      currentTime: 20,
+    });
+    const ctl = new VideoController();
+    ctl.pickFrom([embed]);
+    expect(ctl.video?.id).toBe("vimeo-embed");
+    ctl.dispatch({ type: "swipe", dir: "left" }, 4);
+    expect(embed.currentTime).toBe(10);
+  });
+
   it("does not click a page confirm without a full thumb hold", () => {
     let clicked = false;
     const ctl = new VideoController({

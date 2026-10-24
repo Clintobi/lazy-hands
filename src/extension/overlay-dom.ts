@@ -1,7 +1,7 @@
 import { holdHint, onceHint } from "../lib/overlay-copy";
 import type { PublicController } from "../lib/video-controller";
 
-export function mountOverlay(host: HTMLElement) {
+export function mountOverlay(host: HTMLElement, hooks: { onDismissHint?: () => void } = {}) {
   const root = host.attachShadow({ mode: "open" });
   const wrap = document.createElement("div");
   wrap.setAttribute("data-lh-root", "1");
@@ -9,11 +9,19 @@ export function mountOverlay(host: HTMLElement) {
   const style = document.createElement("style");
   style.textContent = overlayCss();
   root.appendChild(style);
+  wrap.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.dataset.lh === "got-it") hooks.onDismissHint?.();
+  });
   return {
     render(state: PublicController & { miss?: string | null; hint?: boolean; lamp?: string }) {
       wrap.innerHTML = `
         <div class="lh-layer">
-          ${state.hint ? `<aside class="lh-hint"><p class="lh-kicker">Once</p><p>${escapeHtml(onceHint())}</p></aside>` : ""}
+          ${
+            state.hint
+              ? `<aside class="lh-hint"><p class="lh-kicker">Once</p><p>${escapeHtml(onceHint())}</p><button type="button" data-lh="got-it">Got it</button></aside>`
+              : ""
+          }
           ${state.stamp ? `<div class="lh-stamp">${escapeHtml(state.stamp)}</div>` : ""}
           ${
             state.proposal
@@ -27,7 +35,7 @@ export function mountOverlay(host: HTMLElement) {
               : ""
           }
           ${state.miss ? `<article class="lh-miss"><p class="lh-kicker">You missed a stretch</p><p>${escapeHtml(state.miss)}</p></article>` : ""}
-          <span class="lh-lamp">${escapeHtml(state.lamp ?? "Lamp")}</span>
+          ${state.lamp ? `<span class="lh-lamp">${escapeHtml(state.lamp)}</span>` : ""}
         </div>
       `;
     },
@@ -58,6 +66,10 @@ function overlayCss() {
       background: #fbf3e4;
       color: #3b2a1c;
       box-shadow: 6px 6px 0 rgba(106, 64, 36, 0.28);
+    }
+    button[data-lh="got-it"] {
+      background: none; border: 0; color: #8a341c; padding: 0; font: inherit;
+      text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
     }
     .lh-hint {
       position: absolute; left: 16px; top: 16px; max-width: 22rem;

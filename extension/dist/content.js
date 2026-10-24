@@ -1,5 +1,110 @@
 "use strict";
 (() => {
+  // src/lib/find-video.ts
+  function scoreVideo(video) {
+    if (video.hidden) return -1;
+    if (video.display === "none") return -1;
+    if (video.visibility === "hidden") return -1;
+    if ((video.opacity ?? 1) < 0.08) return -1;
+    if (video.ariaHidden) return -1;
+    if (video.ended && video.paused) return -1;
+    const width = video.clientWidth || video.videoWidth || 0;
+    const height = video.clientHeight || video.videoHeight || 0;
+    if (width < 140 || height < 90) return -1;
+    let score = width * height;
+    if (!video.paused) score *= 1.45;
+    if (video.duration >= 20) score *= 1.2;
+    if (video.readyState >= 2) score *= 1.1;
+    if (video.hasControls) score *= 1.05;
+    if (video.inIframe) score *= 0.82;
+    const cls = `${video.id ?? ""} ${video.className ?? ""}`.toLowerCase();
+    if (/html5-main-video|video-stream|movie_player|watch-video|vp-video|r-1/.test(cls)) score *= 1.55;
+    if (/preview|thumbnail|ad-|adsbox|miniplayer|pip/.test(cls) && width < 480) score *= 0.25;
+    const host2 = (video.hostHint ?? "").toLowerCase();
+    if (host2.includes("youtube") && /html5-main-video|video-stream/.test(cls)) score *= 1.2;
+    if (host2.includes("netflix") && width >= 640) score *= 1.15;
+    if (host2.includes("vimeo") && width >= 480) score *= 1.1;
+    if ((host2.includes("x.com") || host2.includes("twitter")) && width >= 300) score *= 1.05;
+    return score;
+  }
+  function pickMainVideo(videos) {
+    let best = null;
+    let bestScore = 0;
+    for (const video of videos) {
+      const score = scoreVideo(video);
+      if (score > bestScore) {
+        best = video;
+        bestScore = score;
+      }
+    }
+    return best;
+  }
+  function shapeFromElement(el, extras2 = {}) {
+    return {
+      id: el.id,
+      className: typeof el.className === "string" ? el.className : el.className?.toString(),
+      src: el.src,
+      currentSrc: el.currentSrc,
+      clientWidth: el.clientWidth,
+      clientHeight: el.clientHeight,
+      videoWidth: el.videoWidth,
+      videoHeight: el.videoHeight,
+      duration: Number.isFinite(el.duration) ? el.duration : 0,
+      currentTime: el.currentTime,
+      paused: el.paused,
+      ended: el.ended,
+      muted: el.muted,
+      readyState: el.readyState,
+      hidden: el.hidden,
+      hasControls: el.controls,
+      ariaHidden: el.getAttribute?.("aria-hidden") === "true",
+      ...extras2
+    };
+  }
+
+  // src/lib/bind-video.ts
+  function bindHtmlVideo(el, extras2 = {}) {
+    return {
+      ...shapeFromElement(el, extras2),
+      play: () => el.play(),
+      pause: () => el.pause(),
+      get currentTime() {
+        return el.currentTime;
+      },
+      set currentTime(value) {
+        el.currentTime = value;
+      },
+      get paused() {
+        return el.paused;
+      },
+      set paused(value) {
+        if (value) el.pause();
+        else void el.play();
+      },
+      get duration() {
+        return Number.isFinite(el.duration) ? el.duration : 0;
+      },
+      get ended() {
+        return el.ended;
+      },
+      get readyState() {
+        return el.readyState;
+      },
+      get clientWidth() {
+        return el.clientWidth;
+      },
+      get clientHeight() {
+        return el.clientHeight;
+      }
+    };
+  }
+  function pageVideoExtras() {
+    return {
+      hostHint: typeof location !== "undefined" ? location.hostname : "",
+      inIframe: typeof window !== "undefined" && window !== window.top
+    };
+  }
+
   // src/lib/vtt.ts
   function parseStamp(raw) {
     const clean = raw.trim().replace(",", ".");
@@ -40,8 +145,10 @@
   }
 
   // src/lib/page-captions.ts
+  var RANK = ["text_tracks", "vtt", "youtube_dom", "transcript", "aria"];
   function harvestCaptions(sources) {
-    for (const source of sources) {
+    const ranked = RANK.flatMap((kind) => sources.filter((s) => s.kind === kind));
+    for (const source of ranked) {
       if (source.kind === "text_tracks" && source.cues.length > 0) {
         return { cues: source.cues, origin: "textTracks" };
       }
@@ -74,7 +181,7 @@
         const cue = list[j];
         if (!cue) continue;
         const text = String(cue.text ?? "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-        if (text) out.push({ start: cue.startTime, end: cue.endTime, text });
+        if (text) out.push({ start: Number(cue.startTime ?? 0), end: Number(cue.endTime ?? 0), text });
       }
     }
     return out;
@@ -84,9 +191,10 @@
   }
 
   // src/lib/page-confirm.ts
-  var APPROVE_EXACT = /^(approve|confirm|allow|continue|accept|run|yes|ok|okay|execute|proceed|got it|do it)$/i;
+  var APPROVE_EXACT = /^(approve|confirm|allow|execute|proceed)$/i;
+  var WEAK_APPROVE = /^(yes|ok|okay|got it|continue|do it|run|accept)$/i;
   var APPROVE_PHRASE = /\b(approve|confirm|allow this|run (the )?command|continue|accept|yes,?\s+do it|execute)\b/i;
-  var IGNORE = /\b(cancel|dismiss|close|not now|later|no thanks|edit|copy|share|subscribe|sign in|log in|search)\b/i;
+  var IGNORE = /\b(cancel|dismiss|close|not now|later|no thanks|edit|copy|share|subscribe|sign in|log in|search|accept (all )?cookies|reject all)\b/i;
   var DESTRUCTIVE = /\b(delete|remove|destroy|purchase|buy now|pay|send payment|transfer|drop database|format|shutdown|revoke|uninstall|overwrite|force push)\b/i;
   var CHAT_SEND = /^(send|submit)$/i;
   function isDestructiveLabel(label) {
@@ -97,7 +205,8 @@
     if (!label || button.disabled) return null;
     if (IGNORE.test(label) && !APPROVE_EXACT.test(label)) return null;
     if (CHAT_SEND.test(label) && !button.inDialog) return null;
-    const approve = APPROVE_EXACT.test(label) || Boolean(button.inDialog) && APPROVE_PHRASE.test(label);
+    if (WEAK_APPROVE.test(label) && !button.inDialog) return null;
+    const approve = APPROVE_EXACT.test(label) || Boolean(button.inDialog) && (APPROVE_PHRASE.test(label) || WEAK_APPROVE.test(label));
     const destructive = isDestructiveLabel(label);
     if (!approve && !destructive) return null;
     if (!approve && destructive && !button.inDialog) return null;
@@ -253,68 +362,6 @@
     const m = Math.floor(whole / 60);
     const s = whole % 60;
     return `${m}:${String(s).padStart(2, "0")}`;
-  }
-
-  // src/lib/find-video.ts
-  function scoreVideo(video) {
-    if (video.hidden) return -1;
-    if (video.display === "none") return -1;
-    if (video.visibility === "hidden") return -1;
-    if ((video.opacity ?? 1) < 0.08) return -1;
-    if (video.ariaHidden) return -1;
-    if (video.ended && video.paused) return -1;
-    const width = video.clientWidth || video.videoWidth || 0;
-    const height = video.clientHeight || video.videoHeight || 0;
-    if (width < 140 || height < 90) return -1;
-    let score = width * height;
-    if (!video.paused) score *= 1.45;
-    if (video.duration >= 20) score *= 1.2;
-    if (video.readyState >= 2) score *= 1.1;
-    if (video.hasControls) score *= 1.05;
-    if (video.inIframe) score *= 0.82;
-    const cls = `${video.id ?? ""} ${video.className ?? ""}`.toLowerCase();
-    if (/html5-main-video|video-stream|movie_player|watch-video|vp-video|r-1/.test(cls)) score *= 1.55;
-    if (/preview|thumbnail|ad-|adsbox|miniplayer|pip/.test(cls) && width < 480) score *= 0.25;
-    const host2 = (video.hostHint ?? "").toLowerCase();
-    if (host2.includes("youtube") && /html5-main-video|video-stream/.test(cls)) score *= 1.2;
-    if (host2.includes("netflix") && width >= 640) score *= 1.15;
-    if (host2.includes("vimeo") && width >= 480) score *= 1.1;
-    if ((host2.includes("x.com") || host2.includes("twitter")) && width >= 300) score *= 1.05;
-    return score;
-  }
-  function pickMainVideo(videos2) {
-    let best = null;
-    let bestScore = 0;
-    for (const video of videos2) {
-      const score = scoreVideo(video);
-      if (score > bestScore) {
-        best = video;
-        bestScore = score;
-      }
-    }
-    return best;
-  }
-  function shapeFromElement(el, extras = {}) {
-    return {
-      id: el.id,
-      className: typeof el.className === "string" ? el.className : el.className?.toString(),
-      src: el.src,
-      currentSrc: el.currentSrc,
-      clientWidth: el.clientWidth,
-      clientHeight: el.clientHeight,
-      videoWidth: el.videoWidth,
-      videoHeight: el.videoHeight,
-      duration: Number.isFinite(el.duration) ? el.duration : 0,
-      currentTime: el.currentTime,
-      paused: el.paused,
-      ended: el.ended,
-      muted: el.muted,
-      readyState: el.readyState,
-      hidden: el.hidden,
-      hasControls: el.controls,
-      ariaHidden: el.getAttribute?.("aria-hidden") === "true",
-      ...extras
-    };
   }
 
   // src/lib/sandbox.ts
@@ -622,8 +669,8 @@
       this.cues = harvested.cues;
       this.captionOrigin = harvested.origin;
     }
-    pickFrom(videos2) {
-      const chosen = pickMainVideo(videos2);
+    pickFrom(videos) {
+      const chosen = pickMainVideo(videos);
       this.attach(chosen);
       return chosen;
     }
@@ -732,7 +779,7 @@
   }
 
   // src/extension/overlay-dom.ts
-  function mountOverlay(host2) {
+  function mountOverlay(host2, hooks = {}) {
     const root = host2.attachShadow({ mode: "open" });
     const wrap = document.createElement("div");
     wrap.setAttribute("data-lh-root", "1");
@@ -740,11 +787,15 @@
     const style = document.createElement("style");
     style.textContent = overlayCss();
     root.appendChild(style);
+    wrap.addEventListener("click", (event) => {
+      const target = event.target;
+      if (target?.dataset.lh === "got-it") hooks.onDismissHint?.();
+    });
     return {
       render(state) {
         wrap.innerHTML = `
         <div class="lh-layer">
-          ${state.hint ? `<aside class="lh-hint"><p class="lh-kicker">Once</p><p>${escapeHtml(onceHint())}</p></aside>` : ""}
+          ${state.hint ? `<aside class="lh-hint"><p class="lh-kicker">Once</p><p>${escapeHtml(onceHint())}</p><button type="button" data-lh="got-it">Got it</button></aside>` : ""}
           ${state.stamp ? `<div class="lh-stamp">${escapeHtml(state.stamp)}</div>` : ""}
           ${state.proposal ? `<article class="lh-card">
                   <p class="lh-kicker">${state.proposal.destructive ? "Hold to confirm" : "The model asks"}</p>
@@ -754,7 +805,7 @@
                   <div class="lh-ring" style="--p:${state.holdProgress}">${state.holdIntent === "approve" ? "Yes" : state.holdIntent === "reject" ? "No" : "Hold"}</div>
                 </article>` : ""}
           ${state.miss ? `<article class="lh-miss"><p class="lh-kicker">You missed a stretch</p><p>${escapeHtml(state.miss)}</p></article>` : ""}
-          <span class="lh-lamp">${escapeHtml(state.lamp ?? "Lamp")}</span>
+          ${state.lamp ? `<span class="lh-lamp">${escapeHtml(state.lamp)}</span>` : ""}
         </div>
       `;
       },
@@ -779,6 +830,10 @@
       background: #fbf3e4;
       color: #3b2a1c;
       box-shadow: 6px 6px 0 rgba(106, 64, 36, 0.28);
+    }
+    button[data-lh="got-it"] {
+      background: none; border: 0; color: #8a341c; padding: 0; font: inherit;
+      text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
     }
     .lh-hint {
       position: absolute; left: 16px; top: 16px; max-width: 22rem;
@@ -816,21 +871,23 @@
   }
 
   // src/extension/content.ts
+  var isTop = window === window.top;
   var host = document.createElement("div");
   host.id = "lazy-hands-root";
   host.style.all = "initial";
-  document.documentElement.appendChild(host);
-  var overlay = mountOverlay(host);
+  var overlay = null;
   var miss = null;
   var hint = localStorage.getItem("lazy-hands-hint") !== "hid";
-  var lamp = "Lamp idle";
+  var lamp = "";
   var scanned = /* @__PURE__ */ new Set();
+  var held = { yes: false, no: false };
   var controller = new VideoController({
     onSummarise: (_from, _to, text) => {
       miss = text;
       paint();
     },
     onDecision: (proposal, decision) => {
+      if (!isTop) return;
       chrome.runtime.sendMessage({
         type: "answer",
         id: String(proposal.payload.askId ?? proposal.id),
@@ -846,68 +903,99 @@
     },
     onState: () => paint()
   });
-  function videos() {
-    const extras = {
-      hostHint: location.hostname,
-      inIframe: window !== window.top,
+  function extras() {
+    const base = pageVideoExtras();
+    return {
+      ...base,
       display: "",
       visibility: "",
       opacity: 1
     };
+  }
+  function listVideos() {
     return Array.from(document.querySelectorAll("video")).map((el) => {
       const style = window.getComputedStyle(el);
       return {
-        ...shapeFromElement(el, {
-          ...extras,
+        handle: bindHtmlVideo(el, {
+          ...extras(),
           display: style.display,
           visibility: style.visibility,
           opacity: Number(style.opacity)
         }),
-        play: () => el.play(),
-        pause: () => el.pause(),
-        get currentTime() {
-          return el.currentTime;
-        },
-        set currentTime(value) {
-          el.currentTime = value;
-        },
-        get paused() {
-          return el.paused;
-        },
-        set paused(value) {
-          if (value) el.pause();
-          else void el.play();
-        }
+        el
       };
     });
   }
-  function refreshVideo() {
-    const chosen = controller.pickFrom(videos());
-    if (!chosen) return;
-    const el = document.querySelector("video");
-    if (el) {
-      controller.loadCaptions([
-        { kind: "text_tracks", cues: cuesFromTextTracks(el.textTracks) },
-        { kind: "youtube_dom", lines: collectDomCaptionLines(document.querySelectorAll(".ytp-caption-segment, .caption-window")) },
-        { kind: "transcript", lines: collectDomCaptionLines(document.querySelectorAll("[data-purpose='transcript-cue'], .transcript-text")) }
-      ]);
-    }
+  function harvestFrom(el) {
+    controller.loadCaptions([
+      { kind: "text_tracks", cues: cuesFromTextTracks(el.textTracks) },
+      {
+        kind: "youtube_dom",
+        lines: collectDomCaptionLines(document.querySelectorAll(".ytp-caption-segment, .caption-window"))
+      },
+      {
+        kind: "transcript",
+        lines: collectDomCaptionLines(
+          document.querySelectorAll("[data-purpose='transcript-cue'], .transcript-text, ytd-transcript-segment-renderer")
+        )
+      }
+    ]);
   }
-  function paint() {
-    overlay.render({
-      ...controller.publicState(),
-      miss,
-      hint,
-      lamp
+  function refreshVideo() {
+    const list = listVideos();
+    const chosen = controller.pickFrom(list.map((row) => row.handle));
+    const match = list.find((row) => row.handle === chosen);
+    if (match) harvestFrom(match.el);
+    maybeMount();
+  }
+  function maybeMount() {
+    if (overlay) return;
+    if (!isTop && !controller.video) return;
+    if (!host.isConnected) document.documentElement.appendChild(host);
+    overlay = mountOverlay(host, {
+      onDismissHint: () => {
+        hint = false;
+        try {
+          localStorage.setItem("lazy-hands-hint", "hid");
+        } catch {
+        }
+        paint();
+      }
     });
   }
+  function paint() {
+    if (!overlay) return;
+    const pub = controller.publicState();
+    const hasWork = Boolean(controller.video || pub.proposal || miss || pub.stamp);
+    overlay.render({
+      ...pub,
+      miss,
+      hint: hint && Boolean(controller.video),
+      lamp: hasWork ? lamp : ""
+    });
+  }
+  function uniqueButtons(nodes) {
+    return Array.from(new Set(nodes));
+  }
   function scanDialogs() {
+    if (!isTop) return;
     if (controller.session.mode === "approval_pending") return;
-    const nodes = document.querySelectorAll("button, [role='button'], input[type='button'], input[type='submit']");
-    nodes.forEach((node, i) => node.setAttribute("data-lh-btn", String(i)));
-    const candidate = pickConfirmCandidate(buttonsFromDocument(nodes));
+    const nodes = [];
+    document.querySelectorAll("dialog, [role='dialog'], [role='alertdialog']").forEach((dialog) => {
+      if (dialog instanceof HTMLDialogElement && !dialog.open) return;
+      dialog.querySelectorAll("button, [role='button'], input[type='button'], input[type='submit']").forEach((node) => {
+        nodes.push(node);
+      });
+    });
+    document.querySelectorAll("button, [role='button']").forEach((node) => {
+      const label = (node.textContent ?? "").replace(/\s+/g, " ").trim();
+      if (/^(approve|confirm|allow|execute|proceed)$/i.test(label)) nodes.push(node);
+    });
+    const unique = uniqueButtons(nodes);
+    unique.forEach((node, i) => node.setAttribute("data-lh-btn", String(i)));
+    const candidate = pickConfirmCandidate(buttonsFromDocument(unique));
     if (!candidate) return;
-    const key = `${candidate.label}:${candidate.selector}`;
+    const key = `${location.href}:${candidate.label}:${candidate.selector}`;
     if (scanned.has(key)) return;
     scanned.add(key);
     controller.dispatch({
@@ -933,6 +1021,8 @@
       paint();
     }
     if (msg.type === "ask") {
+      if (!isTop) return false;
+      maybeMount();
       controller.dispatch({
         type: "propose",
         force: true,
@@ -946,7 +1036,7 @@
   });
   window.addEventListener("keydown", (event) => {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
-    if (event.code === "Space" && controller.session.mode === "watching") {
+    if (event.code === "Space" && controller.session.mode === "watching" && controller.video) {
       event.preventDefault();
       controller.dispatch({ type: "pose", pose: "open_palm", dt: 200 });
     }
@@ -955,20 +1045,35 @@
     }
     if (event.key === "ArrowLeft") controller.dispatch({ type: "swipe", dir: "left" });
     if (event.key === "ArrowRight") controller.dispatch({ type: "swipe", dir: "right" });
+    if (event.key === "y" || event.key === "Y") held.yes = true;
+    if (event.key === "n" || event.key === "N") held.no = true;
     if (event.key === "Escape") {
       hint = false;
-      localStorage.setItem("lazy-hands-hint", "hid");
+      try {
+        localStorage.setItem("lazy-hands-hint", "hid");
+      } catch {
+      }
       paint();
     }
   });
+  window.addEventListener("keyup", (event) => {
+    if (event.key === "y" || event.key === "Y") held.yes = false;
+    if (event.key === "n" || event.key === "N") held.no = false;
+  });
+  window.setInterval(() => {
+    if (held.yes) controller.dispatch({ type: "pose", pose: "thumbs_up", dt: 50 });
+    if (held.no) controller.dispatch({ type: "pose", pose: "open_palm", dt: 50 });
+  }, 50);
   refreshVideo();
   setInterval(() => {
     refreshVideo();
-    controller.considerProposal();
+    if (controller.video) controller.considerProposal();
     scanDialogs();
   }, 1500);
   new MutationObserver(() => {
-    if (document.querySelector("dialog, [role='dialog'], [role='alertdialog']")) scanDialogs();
+    if (isTop && document.querySelector("dialog, [role='dialog'], [role='alertdialog']")) scanDialogs();
+    if (!controller.video) refreshVideo();
   }).observe(document.documentElement, { childList: true, subtree: true });
+  maybeMount();
   paint();
 })();

@@ -32,4 +32,11 @@ describe("page confirm hook", () => {
   it("does not pick a lone purchase button in the page chrome", () => {
     expect(pickConfirmCandidate([{ label: "Buy now", inDialog: false }])).toBeNull();
   });
+
+  it("ignores weak Yes or OK labels outside a dialog", () => {
+    expect(classifyButton({ label: "Yes", inDialog: false })).toBeNull();
+    expect(classifyButton({ label: "OK", inDialog: false })).toBeNull();
+    expect(classifyButton({ label: "Accept cookies", inDialog: false })).toBeNull();
+    expect(classifyButton({ label: "Yes", inDialog: true, role: "button" })?.label).toBe("Yes");
+  });
 });

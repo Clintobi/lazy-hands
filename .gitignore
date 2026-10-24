@@ -18,8 +18,9 @@
 /docs/demo/*.webm
 !/docs/demo/lazy-hands-demo.webm
 
-# MediaPipe wasm is copied on npm install
+# MediaPipe wasm is copied on npm install / ext:build
 /public/models/mediapipe/wasm
+/extension/models
 
 # next.js
 /.next/

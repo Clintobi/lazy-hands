@@ -1,14 +1,14 @@
 "use strict";
 (() => {
   // src/extension/popup.ts
-  var start = document.getElementById("start");
-  var stop = document.getElementById("stop");
+  var startBtn = document.getElementById("start");
+  var restBtn = document.getElementById("stop");
   var lamp = document.getElementById("lamp");
-  start?.addEventListener("click", () => {
+  startBtn?.addEventListener("click", () => {
     chrome.runtime.sendMessage({ type: "start-camera" });
     if (lamp) lamp.textContent = "Asking the camera";
   });
-  stop?.addEventListener("click", () => {
+  restBtn?.addEventListener("click", () => {
     chrome.runtime.sendMessage({ type: "stop-camera" });
     if (lamp) lamp.textContent = "Lamp idle";
   });

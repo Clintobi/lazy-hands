@@ -26,8 +26,8 @@ Honest edges, not a brochure.
 - Approve and refuse need an 800 ms hold. A flick cannot buy an action.
 - Player actions stay sandboxed: seek, captions, bookmarks, notes, a local recap.
 - Agent commands run only after a held thumb on the local bridge. The default is refuse (palm or timeout).
-- Page confirm buttons are offered only when the matcher is sure. Chat Send is ignored. Destructive labels still need a hold. Nothing is clicked without that hold.
-- The bridge listens on 127.0.0.1 only.
+- Page confirm buttons are offered only when the matcher is sure. Chat Send is ignored. Yes, OK, and cookie Accept stay ignored unless they sit in a dialog. Destructive labels still need a hold. Nothing is clicked without that hold.
+- Agent asks from the CLI show on the focused Chrome tab (or on `/watch` if that page is open). The bridge listens on 127.0.0.1 only.
 
 ## Models
 

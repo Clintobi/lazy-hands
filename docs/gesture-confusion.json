@@ -6,241 +6,241 @@
       "name": "palm-0",
       "expected": "open_palm",
       "got": "open_palm",
-      "ms": 0.06578199999998446
+      "ms": 0.0648920000000146
     },
     {
       "name": "palm-1",
       "expected": "open_palm",
       "got": "open_palm",
-      "ms": 0.007051000000018348
+      "ms": 0.006801999999993313
     },
     {
       "name": "palm-2",
       "expected": "open_palm",
       "got": "open_palm",
-      "ms": 0.011339999999989914
+      "ms": 0.010741000000024314
     },
     {
       "name": "palm-3",
       "expected": "open_palm",
       "got": "open_palm",
-      "ms": 0.004689000000013266
+      "ms": 0.004568000000006123
     },
     {
       "name": "palm-4",
       "expected": "open_palm",
       "got": "open_palm",
-      "ms": 0.010854999999992287
+      "ms": 0.009572999999988951
     },
     {
       "name": "palm-5",
       "expected": "open_palm",
       "got": "open_palm",
-      "ms": 0.0039989999999932024
+      "ms": 0.0036410000000159926
     },
     {
       "name": "palm-6",
       "expected": "open_palm",
       "got": "open_palm",
-      "ms": 0.003619000000014694
+      "ms": 0.003459000000020751
     },
     {
       "name": "palm-7",
       "expected": "open_palm",
       "got": "open_palm",
-      "ms": 0.005031999999999925
+      "ms": 0.004850000000004684
     },
     {
       "name": "palm-8",
       "expected": "open_palm",
       "got": "open_palm",
-      "ms": 0.005606000000000222
+      "ms": 0.005229000000014139
     },
     {
       "name": "palm-9",
       "expected": "open_palm",
       "got": "open_palm",
-      "ms": 0.006322999999980539
+      "ms": 0.00611900000001242
     },
     {
       "name": "palm-10",
       "expected": "open_palm",
       "got": "open_palm",
-      "ms": 0.01491699999999696
+      "ms": 0.013206999999994196
     },
     {
       "name": "palm-11",
       "expected": "open_palm",
       "got": "open_palm",
-      "ms": 0.006042000000007874
+      "ms": 0.005276000000009162
     },
     {
       "name": "thumb-0",
       "expected": "thumbs_up",
       "got": "thumbs_up",
-      "ms": 0.03711300000000506
+      "ms": 0.0337120000000084
     },
     {
       "name": "thumb-1",
       "expected": "thumbs_up",
       "got": "thumbs_up",
-      "ms": 0.00575399999999604
+      "ms": 0.005039999999979727
     },
     {
       "name": "thumb-2",
       "expected": "thumbs_up",
       "got": "thumbs_up",
-      "ms": 0.004188999999996668
+      "ms": 0.0037880000000143355
     },
     {
       "name": "thumb-3",
       "expected": "thumbs_up",
       "got": "thumbs_up",
-      "ms": 0.00413000000000352
+      "ms": 0.003594999999990023
     },
     {
       "name": "thumb-4",
       "expected": "thumbs_up",
       "got": "thumbs_up",
-      "ms": 0.004168000000021266
+      "ms": 0.003961000000003878
     },
     {
       "name": "thumb-5",
       "expected": "thumbs_up",
       "got": "thumbs_up",
-      "ms": 0.0045709999999985484
+      "ms": 0.0037780000000111613
     },
     {
       "name": "thumb-6",
       "expected": "thumbs_up",
       "got": "thumbs_up",
-      "ms": 0.004177000000026965
+      "ms": 0.003515000000021473
     },
     {
       "name": "thumb-7",
       "expected": "thumbs_up",
       "got": "thumbs_up",
-      "ms": 0.002849999999995134
+      "ms": 0.002688000000006241
     },
     {
       "name": "thumb-8",
       "expected": "thumbs_up",
       "got": "thumbs_up",
-      "ms": 0.004864999999995234
+      "ms": 0.004252000000008138
     },
     {
       "name": "thumb-9",
       "expected": "thumbs_up",
       "got": "thumbs_up",
-      "ms": 0.007070999999996275
+      "ms": 0.006775000000004638
     },
     {
       "name": "thumb-10",
       "expected": "thumbs_up",
       "got": "thumbs_up",
-      "ms": 0.004367999999999483
+      "ms": 0.003862999999995509
     },
     {
       "name": "thumb-11",
       "expected": "thumbs_up",
       "got": "thumbs_up",
-      "ms": 0.0046169999999960964
+      "ms": 0.004851000000002159
     },
     {
       "name": "none-fist-0",
       "expected": "none",
       "got": "none",
-      "ms": 0.005036999999987302
+      "ms": 0.00439500000001658
     },
     {
       "name": "none-fist-1",
       "expected": "none",
       "got": "none",
-      "ms": 0.0045619999999928496
+      "ms": 0.003982000000007702
     },
     {
       "name": "none-fist-2",
       "expected": "none",
       "got": "none",
-      "ms": 0.0038049999999998363
+      "ms": 0.0034290000000112286
     },
     {
       "name": "none-fist-3",
       "expected": "none",
       "got": "none",
-      "ms": 0.004598999999984699
+      "ms": 0.00332000000000221
     },
     {
       "name": "none-fist-4",
       "expected": "none",
       "got": "none",
-      "ms": 0.004115000000012969
+      "ms": 0.003495000000015125
     },
     {
       "name": "none-fist-5",
       "expected": "none",
       "got": "none",
-      "ms": 0.004070000000012897
+      "ms": 0.003479999999996153
     },
     {
       "name": "none-fist-6",
       "expected": "none",
       "got": "none",
-      "ms": 0.004080000000016071
+      "ms": 0.0032899999999926877
     },
     {
       "name": "none-fist-7",
       "expected": "none",
       "got": "none",
-      "ms": 0.0037079999999889424
+      "ms": 0.0032800000000179352
     },
     {
       "name": "none-point-0",
       "expected": "none",
       "got": "none",
-      "ms": 0.0036670000000071923
+      "ms": 0.003541000000012673
     },
     {
       "name": "none-point-1",
       "expected": "none",
       "got": "none",
-      "ms": 0.004153000000002294
+      "ms": 0.0035300000000120235
     },
     {
       "name": "none-point-2",
       "expected": "none",
       "got": "none",
-      "ms": 0.0038340000000118835
+      "ms": 0.0036429999999825213
     },
     {
       "name": "none-point-3",
       "expected": "none",
       "got": "none",
-      "ms": 0.0040639999999996235
+      "ms": 0.0033560000000250056
     },
     {
       "name": "none-point-4",
       "expected": "none",
       "got": "none",
-      "ms": 0.005108000000006996
+      "ms": 0.0036729999999920437
     },
     {
       "name": "none-point-5",
       "expected": "none",
       "got": "none",
-      "ms": 0.0036740000000179407
+      "ms": 0.0034420000000068285
     },
     {
       "name": "none-point-6",
       "expected": "none",
       "got": "none",
-      "ms": 0.003839999999996735
+      "ms": 0.0034689999999955035
     },
     {
       "name": "none-point-7",
       "expected": "none",
       "got": "none",
-      "ms": 0.004146999999989021
+      "ms": 0.0033129999999914617
     }
   ]
 }

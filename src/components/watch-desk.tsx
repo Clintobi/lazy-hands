@@ -2,31 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SiteOverlay } from "@/components/site-overlay";
+import { bindHtmlVideo } from "@/lib/bind-video";
 import { parseBridgeMessage, wsUrl, type BridgeAsk } from "@/lib/bridge-protocol";
-import { shapeFromElement } from "@/lib/find-video";
 import { cuesFromTextTracks } from "@/lib/page-captions";
 import { phraseAgentCommand } from "@/lib/proposals";
-import { VideoController, type PublicController, type VideoHandle } from "@/lib/video-controller";
+import { VideoController, type PublicController } from "@/lib/video-controller";
 
-function bindVideo(el: HTMLVideoElement): VideoHandle {
-  return {
-    ...shapeFromElement(el, { hostHint: "northdock.local" }),
-    play: () => el.play(),
-    pause: () => el.pause(),
-    get currentTime() {
-      return el.currentTime;
-    },
-    set currentTime(value: number) {
-      el.currentTime = value;
-    },
-    get paused() {
-      return el.paused;
-    },
-    set paused(value: boolean) {
-      if (value) el.pause();
-      else void el.play();
-    },
-  };
+function bindVideo(el: HTMLVideoElement) {
+  return bindHtmlVideo(el, { hostHint: "northdock.local" });
 }
 
 export function WatchDesk() {
@@ -104,9 +87,10 @@ export function WatchDesk() {
   }, [ask, showFrame, miss]);
 
   useEffect(() => {
+    const held = { yes: false, no: false };
     const onKey = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
-      if (event.code === "Space") {
+      if (event.code === "Space" && ctlRef.current.session.mode === "watching") {
         event.preventDefault();
         ctlRef.current.dispatch({ type: "pose", pose: "open_palm", dt: 200 });
       }
@@ -115,9 +99,24 @@ export function WatchDesk() {
       }
       if (event.key === "ArrowRight") ctlRef.current.dispatch({ type: "swipe", dir: "right" });
       if (event.key === "ArrowLeft") ctlRef.current.dispatch({ type: "swipe", dir: "left" });
+      if (event.key === "y" || event.key === "Y") held.yes = true;
+      if (event.key === "n" || event.key === "N") held.no = true;
     };
+    const onUp = (event: KeyboardEvent) => {
+      if (event.key === "y" || event.key === "Y") held.yes = false;
+      if (event.key === "n" || event.key === "N") held.no = false;
+    };
+    const tick = window.setInterval(() => {
+      if (held.yes) ctlRef.current.dispatch({ type: "pose", pose: "thumbs_up", dt: 50 });
+      if (held.no) ctlRef.current.dispatch({ type: "pose", pose: "open_palm", dt: 50 });
+    }, 50);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keyup", onUp);
+    return () => {
+      window.clearInterval(tick);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onUp);
+    };
   }, []);
 
   useEffect(() => {
