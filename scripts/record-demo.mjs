@@ -52,11 +52,12 @@ async function playFrom(t, ms) {
   await page.waitForTimeout(ms);
 }
 
+await page.evaluate(() => window.__lazyHands?.lockAutoPropose());
 await show(6);
-await page.waitForTimeout(9000);
+await page.waitForTimeout(10000);
 await page.getByRole("button", { name: "Got it" }).click().catch(() => undefined);
-await page.waitForTimeout(1200);
-await playFrom(4, 10000);
+await page.waitForTimeout(1500);
+await playFrom(4.2, 2800);
 await page.evaluate(() => window.__lazyHands?.pose("open_palm", 220));
 await page.waitForTimeout(3500);
 await show(10);
@@ -64,23 +65,27 @@ await page.evaluate(() => window.__lazyHands?.swipe("right"));
 await page.waitForTimeout(3000);
 await show(14);
 await page.evaluate(() => window.__lazyHands?.propose("skip_intro"));
-await page.waitForTimeout(2000);
-for (let i = 0; i < 10; i++) {
-  await page.evaluate(() => window.__lazyHands?.pose("thumbs_up", 90));
-  await page.waitForTimeout(90);
+await page.waitForTimeout(2500);
+for (let i = 0; i < 5; i++) {
+  await page.evaluate(() => window.__lazyHands?.pose("thumbs_up", 70));
+  await page.waitForTimeout(70);
 }
-await page.waitForTimeout(3500);
+await page.evaluate(() => window.__lazyHands?.pose("thumbs_up", 800));
+await page.waitForFunction(() => window.__lazyHands?.getState()?.mode === "watching");
+await page.waitForTimeout(2500);
 await show(10);
 await page.evaluate(() => {
   window.__lazyHands?.pose("none", 16);
   window.__lazyHands?.propose("bookmark");
 });
-await page.waitForTimeout(1800);
-for (let i = 0; i < 10; i++) {
-  await page.evaluate(() => window.__lazyHands?.pose("open_palm", 90));
-  await page.waitForTimeout(90);
+await page.waitForTimeout(2500);
+for (let i = 0; i < 5; i++) {
+  await page.evaluate(() => window.__lazyHands?.pose("open_palm", 70));
+  await page.waitForTimeout(70);
 }
-await page.waitForTimeout(3000);
+await page.evaluate(() => window.__lazyHands?.pose("open_palm", 800));
+await page.waitForFunction(() => window.__lazyHands?.getState()?.mode === "watching");
+await page.waitForTimeout(2500);
 await show(26);
 if (existsSync("docs/MODEL_RUN.json")) {
   const run = JSON.parse(readFileSync("docs/MODEL_RUN.json", "utf8"));
@@ -105,10 +110,10 @@ if (existsSync("docs/MODEL_RUN.json")) {
     window.__lazyHands?.missKey();
   });
 }
-await page.waitForTimeout(14000);
-await playFrom(25, 8000);
+await page.waitForTimeout(16000);
+await playFrom(26, 4000);
 await show(30);
-await page.waitForTimeout(4000);
+await page.waitForTimeout(9000);
 
 const video = page.video();
 await context.close();

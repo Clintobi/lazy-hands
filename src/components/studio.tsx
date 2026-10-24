@@ -50,6 +50,7 @@ declare global {
       showFrame: (seconds: number) => Promise<void>;
       setMiss: (payload: SummaryResult & { from: number; to: number }) => void;
       dismissHint: () => void;
+      lockAutoPropose: () => void;
     };
   }
 }
@@ -416,6 +417,9 @@ export function Studio() {
         setMiss(payload);
       },
       dismissHint,
+      lockAutoPropose: () => {
+        lastProposalAt.current = Number.POSITIVE_INFINITY;
+      },
     };
     return () => {
       delete window.__lazyHands;
