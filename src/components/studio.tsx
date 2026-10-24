@@ -251,7 +251,7 @@ export function Studio() {
     const video = videoRef.current;
     if (!video || !source) return;
     const warm = () => {
-      if (video.currentTime < 0.25) void showFrame(8);
+      if (video.currentTime < 0.25) void showFrame(10);
     };
     if (video.readyState >= 1) warm();
     video.addEventListener("loadedmetadata", warm, { once: true });
@@ -528,7 +528,7 @@ export function Studio() {
               {source ? (
                 <video
                   ref={videoRef}
-                  className="h-full w-full object-cover"
+                  className="relative z-0 h-full w-full object-cover"
                   src={source.src}
                   poster={source.poster}
                   muted
@@ -546,7 +546,7 @@ export function Studio() {
                   onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
                   onLoadedMetadata={(e) => {
                     setDuration(e.currentTarget.duration || 0);
-                    if (e.currentTarget.currentTime < 0.25) void showFrame(8);
+                    if (e.currentTarget.currentTime < 0.25) void showFrame(10);
                   }}
                   onError={() => setError("This file would not play in the browser.")}
                 >
@@ -558,8 +558,9 @@ export function Studio() {
                 <EmptyStage onPick={loadSample} onFiles={onFiles} />
               )}
 
+              <div className="pointer-events-none absolute inset-0 z-20">
               {hintOpen ? (
-                <div className="hint-slip" data-testid="first-run-hint">
+                <div className="hint-slip pointer-events-auto" data-testid="first-run-hint">
                   <p className="font-display text-[11px] uppercase tracking-[0.18em] text-[var(--walnut)]">Once</p>
                   <p className="mt-1 max-w-sm text-[13px] leading-5 text-[var(--ink)]">
                     Palm to pause. Swipe to skip. Thumb held to approve. Palm held to refuse. Look away, or press M.
@@ -626,6 +627,7 @@ export function Studio() {
                     )}
                   </article>
                 ) : null}
+              </div>
               </div>
             </div>
           </section>

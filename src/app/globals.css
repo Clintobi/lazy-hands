@@ -51,6 +51,7 @@ body {
   position: absolute;
   left: 8%;
   top: 18%;
+  z-index: 21;
   rotate: -7deg;
   border: 3px solid var(--rust);
   color: var(--rust);
@@ -106,15 +107,18 @@ body {
 
 .hint-slip {
   position: absolute;
-  left: 14px;
-  top: 14px;
-  z-index: 8;
+  left: 16px;
+  top: 16px;
+  z-index: 30;
+  isolation: isolate;
+  transform: translateZ(0);
   max-width: 22rem;
   background: var(--cream);
-  border-left: 4px solid var(--brass);
+  border: 1px solid rgba(106, 64, 36, 0.28);
+  border-left: 5px solid var(--brass);
   border-radius: 2px 12px 4px 2px;
-  padding: 0.7rem 0.85rem 0.75rem;
-  box-shadow: 5px 5px 0 rgba(106, 64, 36, 0.22);
+  padding: 0.75rem 0.9rem 0.8rem;
+  box-shadow: 6px 6px 0 rgba(106, 64, 36, 0.28);
 }
 
 .scrub {

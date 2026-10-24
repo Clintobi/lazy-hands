@@ -1,7 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 
-const BRIGHT_T = 8;
+const BRIGHT_T = 10;
+const SCENIC = [10, 14, 26, 6, 4, 30];
 
 async function ready(page: Page) {
   await page.addInitScript(() => {
@@ -50,27 +51,35 @@ async function videoLuma(page: Page) {
 }
 
 async function showBrightFrame(page: Page, seconds = BRIGHT_T) {
-  const candidates = [seconds, 8, 9, 10, 11, 26, 27];
+  const candidates = [seconds, ...SCENIC.filter((t) => t !== seconds)];
   let luma = 0;
+  let used = seconds;
   for (const t of candidates) {
     await page.evaluate(async (at) => {
       await window.__lazyHands?.showFrame(at);
     }, t);
     await page.waitForTimeout(160);
     luma = await videoLuma(page);
-    if (luma > 80) break;
+    used = t;
+    // Title cards in this trailer sit near luma 250. Meadow and forest sit 110-200.
+    if (luma > 90 && luma < 230) break;
   }
-  expect(luma).toBeGreaterThan(80);
+  expect(luma, `scenic frame at ${used}s`).toBeGreaterThan(90);
+  expect(luma, `not a white title card at ${used}s`).toBeLessThan(230);
 }
 
 test.describe("Lazy Hands", () => {
   test("idle, gesture, approval hold, miss card on a real Bunny frame", async ({ page }) => {
     mkdirSync("docs/screenshots", { recursive: true });
     await ready(page);
-    await showBrightFrame(page);
-    await expect(page.getByTestId("first-run-hint")).toBeVisible();
+    await showBrightFrame(page, 6);
+    const hint = page.getByTestId("first-run-hint");
+    await expect(hint).toBeVisible();
     await expect(page.locator("aside")).toHaveCount(0);
     await expect(page.getByText(/Palm pulse to pause/i)).toHaveCount(0);
+    const hintBox = await hint.boundingBox();
+    expect(hintBox?.width ?? 0).toBeGreaterThan(180);
+    expect(hintBox?.height ?? 0).toBeGreaterThan(70);
     await page.screenshot({ path: "docs/screenshots/idle-1280.png", fullPage: false });
 
     await page.evaluate(() => window.__lazyHands?.dismissHint());
@@ -78,14 +87,14 @@ test.describe("Lazy Hands", () => {
 
     await page.evaluate(() => window.__lazyHands?.pose("open_palm", 220));
     await expect(page.getByTestId("gesture-stamp")).toContainText(/Play|Pause/);
-    await showBrightFrame(page);
+    await showBrightFrame(page, 10);
     await page.evaluate(() => window.__lazyHands?.pose("open_palm", 220));
     await expect(page.getByTestId("gesture-stamp")).toBeVisible();
     await page.screenshot({ path: "docs/screenshots/gesture-1280.png", fullPage: false });
 
     await page.evaluate(() => window.__lazyHands?.dismissHint());
     await page.waitForTimeout(1200);
-    await showBrightFrame(page);
+    await showBrightFrame(page, 14);
     await page.evaluate(() => window.__lazyHands?.propose("skip_intro"));
     await expect(page.getByTestId("approval-card")).toBeVisible();
     await page.evaluate(() => window.__lazyHands?.pose("thumbs_up", 400));
@@ -98,7 +107,7 @@ test.describe("Lazy Hands", () => {
     });
     await expect(page.getByTestId("gesture-stamp")).toContainText(/Held off/);
 
-    await showBrightFrame(page);
+    await showBrightFrame(page, 26);
     if (existsSync("docs/MODEL_RUN.json")) {
       const run = JSON.parse(readFileSync("docs/MODEL_RUN.json", "utf8")) as {
         text: string;
@@ -129,7 +138,7 @@ test.describe("Lazy Hands", () => {
         window.__lazyHands?.missKey();
       });
     }
-    await showBrightFrame(page);
+    await showBrightFrame(page, 26);
     await expect(page.getByTestId("miss-card")).toContainText(/You missed/);
     await expect(page.getByTestId("miss-text")).not.toContainText(/i cannot|no captions|as an ai/i);
     await expect(page.getByTestId("miss-note")).toContainText(/DistilBART|Gemma|extractive/i);
