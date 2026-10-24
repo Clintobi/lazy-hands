@@ -18,8 +18,8 @@ Honest edges, not a brochure.
 ## Models
 
 - Preferred: Gemma 2 2B IT, q4, through WebLLM. That needs WebGPU and a first-time download of about 1 to 2 GB of weights into the browser cache.
-- If Gemma does not load: LaMini-Flan-T5-77M through transformers.js, also local, also a first-time weight download.
-- If neither loads: an extractive recap from the .vtt. The card says so. Tests in CI use this path.
+- This cloud VM has no `/dev/dri` and no `navigator.gpu`, even in Chromium with SwiftShader flags. Gemma therefore cannot start here. DistilBART-CNN-6-6 through transformers.js is the measured path. See docs/MODEL_RUN.md.
+- If neither loads: an extractive recap from the .vtt. The card says so. Unit tests use this path on purpose.
 - No caption file means no honest recap. The app will say that instead of inventing plot.
 
 ## Video

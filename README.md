@@ -34,12 +34,12 @@ Closed APIs are faster to demo on a poster. They are the wrong tool for a webcam
 | Hand landmarker | MediaPipe Tasks Vision, `hand_landmarker.task` | Apache 2.0 (MediaPipe) | This tab |
 | Face detector | MediaPipe BlazeFace short range | Apache 2.0 (MediaPipe) | This tab |
 | Preferred LLM | Gemma 2 2B IT, q4, via WebLLM (`gemma-2-2b-it-q4f16_1-MLC`) | [Gemma Terms of Use](https://ai.google.dev/gemma/terms) (open weights) | This tab, WebGPU |
-| Fallback LLM | LaMini-Flan-T5-77M via transformers.js | CC BY-NC 4.0 (MBZUAI) | This tab |
+| Fallback LLM | DistilBART-CNN-6-6 via transformers.js | Apache 2.0 | This tab, or Node |
 | Last resort | Extractive sentences from the `.vtt` | MIT, this repo | This tab, always |
 | Big Buck Bunny trailer | Re-encoded official 480p trailer | CC BY 3.0, Blender Foundation | `/samples/bunny` |
 | Sintel trailer | Re-encoded official 480p trailer | CC BY 3.0, Blender Foundation | `/samples/sintel` |
 
-Gemma is the intended engine (and the honest entry for "Best Use of Gemma"). It is heavy. If this device cannot load it, the card says so and falls down to T5, then to extractive captions. Tests in CI force the extractive path. We do not pretend Gemma ran when it did not.
+Gemma is the intended engine (and the honest entry for "Best Use of Gemma"). It needs WebGPU. This cloud VM has no `navigator.gpu` adapter, so WebLLM cannot start. The real measured fallback is DistilBART-CNN-6-6 through transformers.js. See [docs/MODEL_RUN.md](docs/MODEL_RUN.md). Extractive captions remain the last resort and the fast unit-test path. We do not pretend Gemma ran when it did not.
 
 MediaPipe wasm is copied from `node_modules` on `npm install` (`scripts/copy-mediapipe.mjs`). The `.task` and `.tflite` files live in `public/models/mediapipe`.
 
@@ -67,7 +67,7 @@ Unit tests drive recorded 21-point hand fixtures, the watching / approval state 
 
 Playwright mocks `getUserMedia` with a canvas stream and drives `window.__lazyHands` so a CI runner does not need a sofa.
 
-Latest fixture numbers: [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md). Limits: [docs/LIMITS.md](docs/LIMITS.md). Screenshots at 1280px sit in `docs/screenshots`.
+Latest fixture numbers: [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md). Real on-device recap: [docs/MODEL_RUN.md](docs/MODEL_RUN.md). Limits: [docs/LIMITS.md](docs/LIMITS.md). Screenshots at 1280px sit in `docs/screenshots`. The 60 to 90s demo is `docs/demo/lazy-hands-demo.mp4`.
 
 ## Layout of the code
 
@@ -75,7 +75,7 @@ Latest fixture numbers: [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md). Limits: [d
 - `src/lib/gestures.ts` : palm, thumb, swipe
 - `src/lib/session.ts` : watching vs approval_pending, hold ring, miss key
 - `src/lib/proposals.ts` : closed set of local asks
-- `src/lib/summarize.ts` : Gemma, T5, extractive
+- `src/lib/summarize.ts` : Gemma, DistilBART, extractive
 - `src/lib/sandbox.ts` : the only place "actions" land
 - `src/components/studio.tsx` : the one screen
 

@@ -11,7 +11,8 @@
     "test": "vitest run",
     "measure": "vitest run tests/measure.test.ts",
     "test:e2e": "playwright test",
-    "demo": "node scripts/record-demo.mjs"
+    "demo": "node scripts/record-demo.mjs",
+    "model-run": "node scripts/run-local-summary.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.1",

@@ -1,6 +1,6 @@
 import { cuesToTranscript, type Cue } from "./vtt";
 
-export type ModelEngine = "gemma-webllm" | "lamini-t5" | "extractive";
+export type ModelEngine = "gemma-webllm" | "distilbart" | "extractive";
 
 export type SummaryResult = {
   text: string;
@@ -10,7 +10,7 @@ export type SummaryResult = {
 };
 
 const GEMMA_ID = "gemma-2-2b-it-q4f16_1-MLC";
-const LAMINI_ID = "Xenova/LaMini-Flan-T5-77M";
+const DISTILBART_ID = "Xenova/distilbart-cnn-6-6";
 
 export const MODEL_COPY = {
   preferred: {
@@ -20,10 +20,10 @@ export const MODEL_COPY = {
     license: "Gemma Terms of Use (Google, open weights)",
   },
   fallback: {
-    id: LAMINI_ID,
-    name: "LaMini-Flan-T5-77M",
+    id: DISTILBART_ID,
+    name: "DistilBART-CNN-6-6",
     via: "transformers.js",
-    license: "CC BY-NC 4.0 (MBZUAI LaMini)",
+    license: "Apache 2.0",
   },
   last: {
     id: "extractive",
@@ -98,11 +98,19 @@ export function resetModelHandles() {
   t5Promise = null;
 }
 
+type GpuNavigator = Navigator & {
+  gpu?: { requestAdapter: () => Promise<unknown> };
+};
+
 async function loadGemma(): Promise<ChatEngine | null> {
   if (typeof window === "undefined") return null;
+  const gpu = (navigator as GpuNavigator).gpu;
+  if (!gpu) return null;
   if (gemmaPromise) return gemmaPromise;
   gemmaPromise = (async () => {
     try {
+      const adapter = await gpu.requestAdapter();
+      if (!adapter) return null;
       const webllm = await import("@mlc-ai/web-llm");
       const engine = await webllm.CreateMLCEngine(GEMMA_ID, {
         initProgressCallback: () => undefined,
@@ -115,20 +123,20 @@ async function loadGemma(): Promise<ChatEngine | null> {
   return gemmaPromise;
 }
 
-async function loadT5(): Promise<((text: string) => Promise<string>) | null> {
-  if (typeof window === "undefined") return null;
+async function loadDistilbart(): Promise<((text: string) => Promise<string>) | null> {
   if (t5Promise) return t5Promise;
   t5Promise = (async () => {
     try {
       const { pipeline } = await import("@huggingface/transformers");
-      const pipe = await pipeline("text2text-generation", LAMINI_ID);
+      const pipe = await pipeline("summarization", DISTILBART_ID);
       return async (text: string) => {
-        const out = await pipe(`summarize: ${text.slice(0, 1800)}`, {
-          max_new_tokens: 96,
+        const out = await pipe(text.slice(0, 2500), {
+          max_length: 90,
+          min_length: 28,
         });
         const first = Array.isArray(out) ? out[0] : out;
-        const rec = first as { generated_text?: string };
-        return (rec.generated_text ?? "").trim();
+        const rec = first as { summary_text?: string; generated_text?: string };
+        return (rec.summary_text ?? rec.generated_text ?? "").trim();
       };
     } catch {
       return null;
@@ -187,22 +195,22 @@ export async function summariseGap(
       }
     }
 
-    const t5 = await loadT5();
-    if (t5) {
+    const neural = await loadDistilbart();
+    if (neural) {
       try {
         const raw = await Promise.race([
-          t5(transcript || "No captions."),
+          neural(transcript || "No captions."),
           new Promise<string>((_, reject) => {
-            setTimeout(() => reject(new Error("t5-timeout")), 8000);
+            setTimeout(() => reject(new Error("distilbart-timeout")), 120_000);
           }),
         ]);
         const text = twoOrThree(raw || fallback);
         if (isUsableSummary(text, transcript)) {
           return {
             text,
-            engine: "lamini-t5",
+            engine: "distilbart",
             latencyMs: nowMs() - started,
-            note: "Gemma did not load on this device. LaMini-Flan-T5-77M ran locally through transformers.js.",
+            note: "Gemma could not run here (no WebGPU). DistilBART-CNN-6-6 ran locally through transformers.js.",
           };
         }
       } catch {
@@ -216,7 +224,7 @@ export async function summariseGap(
     engine: "extractive",
     latencyMs: nowMs() - started,
     note: allow
-      ? "Gemma and the T5 fallback did not run here. This recap is extractive from the captions, still on-device."
+      ? "Gemma and DistilBART did not run here. This recap is extractive from the captions, still on-device."
       : "Extractive recap from the captions, forced for tests.",
   };
 }

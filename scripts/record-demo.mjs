@@ -1,8 +1,10 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, existsSync, readFileSync, copyFileSync } from "node:fs";
 import { chromium } from "@playwright/test";
+import { execFileSync } from "node:child_process";
 
 const outDir = "docs/demo";
 mkdirSync(outDir, { recursive: true });
+mkdirSync("/opt/cursor/artifacts", { recursive: true });
 
 const browser = await chromium.launch();
 const context = await browser.newContext({
@@ -27,57 +29,112 @@ await page.addInitScript(() => {
 });
 
 await page.goto("http://127.0.0.1:4521");
-await page.waitForTimeout(12000);
-await page.getByRole("button", { name: /Sintel 52s/ }).click();
 await page.waitForFunction(() => Boolean(window.__lazyHands));
 await page.waitForFunction(() => {
   const v = document.querySelector("video");
-  return Boolean(v && v.readyState >= 2 && v.duration > 10);
+  return Boolean(v && v.readyState >= 2 && v.duration > 8);
 });
-await page.evaluate(async () => {
-  const video = document.querySelector("video");
-  if (!video) return;
-  await new Promise((resolve) => {
-    video.addEventListener("seeked", () => resolve(null), { once: true });
-    video.currentTime = 18;
-  });
-});
+
+async function show(t = 8) {
+  await page.evaluate(async (seconds) => {
+    await window.__lazyHands?.showFrame(seconds);
+  }, t);
+}
+
+async function playFrom(t, ms) {
+  await page.evaluate(async (seconds) => {
+    const video = document.querySelector("video");
+    if (!video) return;
+    video.muted = true;
+    video.currentTime = seconds;
+    await video.play().catch(() => undefined);
+  }, t);
+  await page.waitForTimeout(ms);
+}
+
+await show(8);
+await page.waitForTimeout(9000);
+await page.getByRole("button", { name: "Got it" }).click().catch(() => undefined);
 await page.waitForTimeout(1200);
+await playFrom(7, 10000);
 await page.evaluate(() => window.__lazyHands?.pose("open_palm", 220));
-await page.waitForTimeout(2200);
+await page.waitForTimeout(3500);
+await show(10);
 await page.evaluate(() => window.__lazyHands?.swipe("right"));
-await page.waitForTimeout(2000);
+await page.waitForTimeout(3000);
+await show(8);
 await page.evaluate(() => window.__lazyHands?.propose("skip_intro"));
-await page.waitForTimeout(1600);
+await page.waitForTimeout(2000);
 for (let i = 0; i < 10; i++) {
   await page.evaluate(() => window.__lazyHands?.pose("thumbs_up", 90));
   await page.waitForTimeout(90);
 }
-await page.waitForTimeout(2500);
+await page.waitForTimeout(3500);
+await show(8);
 await page.evaluate(() => {
-  window.__lazyHands?.setTime(6);
-  window.__lazyHands?.missKey();
+  window.__lazyHands?.pose("none", 16);
+  window.__lazyHands?.propose("bookmark");
 });
-await page.waitForTimeout(2000);
-await page.evaluate(() => {
-  window.__lazyHands?.setTime(22);
-  window.__lazyHands?.missKey();
-});
-await page.waitForTimeout(5000);
-await page.evaluate(() => window.__lazyHands?.propose("note_todo"));
-await page.waitForTimeout(1500);
+await page.waitForTimeout(1800);
 for (let i = 0; i < 10; i++) {
   await page.evaluate(() => window.__lazyHands?.pose("open_palm", 90));
   await page.waitForTimeout(90);
 }
-await page.waitForTimeout(20000);
+await page.waitForTimeout(3000);
+await show(8);
+if (existsSync("docs/MODEL_RUN.json")) {
+  const run = JSON.parse(readFileSync("docs/MODEL_RUN.json", "utf8"));
+  await page.evaluate((payload) => {
+    window.__lazyHands?.setMiss({
+      text: payload.text,
+      engine: payload.engine,
+      note: payload.note,
+      latencyMs: payload.latencyMs,
+      from: payload.from,
+      to: payload.to,
+    });
+  }, run);
+} else {
+  await page.evaluate(() => {
+    window.__lazyHands?.setTime(3);
+    window.__lazyHands?.missKey();
+  });
+  await page.waitForTimeout(300);
+  await page.evaluate(() => {
+    window.__lazyHands?.setTime(16);
+    window.__lazyHands?.missKey();
+  });
+}
+await page.waitForTimeout(14000);
+await playFrom(24, 9000);
+await show(8);
+await page.waitForTimeout(4000);
 
 const video = page.video();
 await context.close();
+await browser.close();
 if (video) {
   const raw = await video.path();
-  const { copyFileSync } = await import("node:fs");
-  copyFileSync(raw, "docs/demo/lazy-hands-demo.webm");
-  console.log("wrote docs/demo/lazy-hands-demo.webm from", raw);
+  execFileSync("ffmpeg", [
+    "-y",
+    "-i",
+    raw,
+    "-an",
+    "-c:v",
+    "libx264",
+    "-pix_fmt",
+    "yuv420p",
+    "-crf",
+    "23",
+    "-movflags",
+    "+faststart",
+    "docs/demo/lazy-hands-demo.mp4",
+  ]);
+  copyFileSync("docs/demo/lazy-hands-demo.mp4", "/opt/cursor/artifacts/lazy_hands_demo.mp4");
+  const probe = execFileSync(
+    "ffprobe",
+    ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", "docs/demo/lazy-hands-demo.mp4"],
+    { encoding: "utf8" },
+  ).trim();
+  console.log("wrote docs/demo/lazy-hands-demo.mp4 duration", probe, "from", raw);
 }
-await browser.close();

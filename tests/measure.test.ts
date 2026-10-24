@@ -110,7 +110,7 @@ A false approval is an \`apply_proposal\` effect when the thumb was never held f
 
 | Check | Result |
 | --- | --- |
-| Engine | extractive (Gemma and T5 were not loaded in this Node run) |
+| Engine | extractive (this file measures the last-resort path only; see docs/MODEL_RUN.md for DistilBART) |
 | Two or three sentences | ${(summaryOk * 100).toFixed(0)}% of ${runs.length} runs |
 | Mean latency | ${summaryMs.toFixed(3)} ms |
 | Failures | empty-gap copy is tested separately in unit tests |

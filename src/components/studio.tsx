@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HoldRing } from "@/components/hold-ring";
 import { Button } from "@/components/ui/button";
-import { HandMark, LampMark, Sprocket } from "@/components/icons";
+import { HandMark, LampMark } from "@/components/icons";
 import { useVision } from "@/hooks/use-vision";
 import { brand } from "@/lib/brand";
 import { cn } from "@/lib/cn";
@@ -47,6 +47,9 @@ declare global {
       missKey: () => void;
       loadSample: (id: SampleFilm["id"]) => void;
       setTime: (seconds: number) => void;
+      showFrame: (seconds: number) => Promise<void>;
+      setMiss: (payload: SummaryResult & { from: number; to: number }) => void;
+      dismissHint: () => void;
     };
   }
 }
@@ -54,6 +57,7 @@ declare global {
 type Source = {
   title: string;
   src: string;
+  poster?: string;
   captionsUrl?: string;
   introEnd: number | null;
   credit?: string;
@@ -76,24 +80,83 @@ export function Studio() {
   const [cameraOn, setCameraOn] = useState(true);
   const [dropHint, setDropHint] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hintOpen, setHintOpen] = useState(true);
   const sessionRef = useRef(session);
   sessionRef.current = session;
   const cuesRef = useRef(cues);
   cuesRef.current = cues;
   const ignoreCameraUntil = useRef(0);
+  const loadedOnce = useRef(false);
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem("lazy-hands-hint") === "hid") setHintOpen(false);
+    } catch {
+      // private mode
+    }
+  }, []);
+
+  const dismissHint = useCallback(() => {
+    setHintOpen(false);
+    try {
+      window.localStorage.setItem("lazy-hands-hint", "hid");
+    } catch {
+      // private mode
+    }
+  }, []);
+
+  const showFrame = useCallback(async (seconds: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    await new Promise<void>((resolve) => {
+      const done = () => resolve();
+      if (video.readyState >= 1) {
+        video.addEventListener("seeked", done, { once: true });
+        video.currentTime = seconds;
+      } else {
+        video.addEventListener(
+          "loadedmetadata",
+          () => {
+            video.addEventListener("seeked", done, { once: true });
+            video.currentTime = seconds;
+          },
+          { once: true },
+        );
+      }
+    });
+    try {
+      video.muted = true;
+      await video.play();
+      if ("requestVideoFrameCallback" in video) {
+        await new Promise<void>((resolve) => {
+          video.requestVideoFrameCallback(() => resolve());
+        });
+      } else {
+        await new Promise((r) => setTimeout(r, 320));
+      }
+    } catch {
+      await new Promise((r) => setTimeout(r, 320));
+    }
+    video.pause();
+    setTime(video.currentTime);
+  }, []);
 
   const applyEffects = useCallback((effects: SessionEffect[]) => {
     const video = videoRef.current;
     for (const effect of effects) {
       if (effect.type === "toggle_playback") {
         if (!video) continue;
-        if (video.paused) void video.play();
-        else video.pause();
+        if (video.paused) {
+          video.muted = true;
+          void video.play();
+        } else video.pause();
       }
       if (effect.type === "set_playback") {
         if (!video) continue;
-        if (effect.playing) void video.play();
-        else video.pause();
+        if (effect.playing) {
+          video.muted = true;
+          void video.play();
+        } else video.pause();
       }
       if (effect.type === "seek" && video) {
         video.currentTime = Math.max(0, video.currentTime + effect.seconds);
@@ -168,6 +231,7 @@ export function Studio() {
       setSource({
         title: film.title,
         src: film.src,
+        poster: film.poster,
         captionsUrl: film.captions,
         introEnd: film.introEnd,
         credit: film.credit,
@@ -176,6 +240,23 @@ export function Studio() {
     },
     [loadCaptions],
   );
+
+  useEffect(() => {
+    if (loadedOnce.current) return;
+    loadedOnce.current = true;
+    void loadSample("bunny");
+  }, [loadSample]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !source) return;
+    const warm = () => {
+      if (video.currentTime < 0.25) void showFrame(8);
+    };
+    if (video.readyState >= 1) warm();
+    video.addEventListener("loadedmetadata", warm, { once: true });
+    return () => video.removeEventListener("loadedmetadata", warm);
+  }, [source, showFrame]);
 
   const onHand = useCallback(
     (pose: PoseName, swipe: "left" | "right" | null, _latency: number) => {
@@ -329,11 +410,17 @@ export function Studio() {
         if (videoRef.current) videoRef.current.currentTime = seconds;
         setTime(seconds);
       },
+      showFrame,
+      setMiss: (payload) => {
+        setMissLoading(false);
+        setMiss(payload);
+      },
+      dismissHint,
     };
     return () => {
       delete window.__lazyHands;
     };
-  }, [dispatch, loadSample, miss, sandbox, source]);
+  }, [dispatch, loadSample, miss, sandbox, source, showFrame, dismissHint]);
 
   useEffect(() => {
     if (session.lastStamp && performance.now() - session.lastStamp.at > 1400) {
@@ -387,49 +474,19 @@ export function Studio() {
         void onFiles([...e.dataTransfer.files]);
       }}
     >
-      <div className="mx-auto flex min-h-dvh max-w-[1280px] flex-col gap-4 px-4 py-5 md:flex-row md:gap-7 md:px-7 md:py-7">
-        <aside className="ticket-rail relative w-full shrink-0 md:w-[168px]">
-          <div className="relative overflow-hidden rounded-[2px] border border-[var(--walnut)]/25 bg-[var(--ticket)] px-4 py-5 shadow-[3px_3px_0_rgba(106,64,36,0.28)] md:min-h-[calc(100dvh-3.5rem)]">
-            <Sprocket className="absolute right-3 top-3 h-5 w-5 text-[var(--walnut)]/40" />
-            <p className="font-display text-[11px] uppercase tracking-[0.28em] text-[var(--walnut)]">Sunday reel</p>
-            <h1 className="mt-3 font-display text-[2.35rem] leading-[0.9] text-[var(--ink)] italic">{brand.name}</h1>
-            <p className="mt-4 text-[13px] leading-5 text-[var(--ink)]/80">{brand.tagline}</p>
-            <ol className="mt-8 space-y-3 text-[12.5px] leading-5 text-[var(--ink)]/85">
-              <li>
-                <span className="font-display italic">Palm</span> pulse to pause.
-              </li>
-              <li>
-                <span className="font-display italic">Swipe</span> to skip ten seconds.
-              </li>
-              <li>
-                <span className="font-display italic">Thumb</span> held to approve.
-              </li>
-              <li>
-                <span className="font-display italic">Palm held</span> to refuse.
-              </li>
-              <li>
-                Look away, or press <kbd className="rounded-[2px] bg-[var(--cream)] px-1">M</kbd>.
-              </li>
-            </ol>
-            <div className="mt-8 border-t border-dashed border-[var(--walnut)]/30 pt-4 text-[12px] leading-5">
-              <p className="font-display italic text-[var(--walnut)]">This tab only</p>
-              <p className="mt-1 text-[var(--ink)]/75">Hands, face, and captions stay on this device. The model never phones home.</p>
-            </div>
-            {sandbox.log[0] ? (
-              <p className="mt-6 text-[11px] uppercase tracking-[0.16em] text-[var(--walnut)]">
-                Last: {sandbox.log[0].decision} · {sandbox.log[0].kind.replaceAll("_", " ")}
-              </p>
-            ) : null}
-          </div>
-        </aside>
-
+      <div className="mx-auto flex min-h-dvh max-w-[1280px] flex-col px-4 py-4 md:px-6 md:py-5">
         <main className="flex min-w-0 flex-1 flex-col">
-          <header className="mb-3 flex items-start justify-between gap-3">
+          <header className="mb-3 flex items-center justify-between gap-3">
             <div>
-              <p className="font-display text-[13px] italic text-[var(--walnut)]">
-                {source ? source.title : "Nothing queued"}
-              </p>
-              {source?.credit ? <p className="max-w-xl text-[11px] leading-4 text-[var(--ink)]/60">{source.credit}</p> : null}
+              <h1 className="font-display text-[1.85rem] leading-none italic text-[var(--ink)]">{brand.name}</h1>
+              {source ? (
+                <p className="mt-1 text-[12px] text-[var(--ink)]/65">
+                  <span className="font-display italic">{source.title}</span>
+                  {source.credit ? <span className="ml-2 text-[11px]">{source.credit}</span> : null}
+                </p>
+              ) : (
+                <p className="mt-1 text-[12px] text-[var(--ink)]/65">{brand.tagline}</p>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <div
@@ -473,7 +530,10 @@ export function Studio() {
                   ref={videoRef}
                   className="h-full w-full object-cover"
                   src={source.src}
+                  poster={source.poster}
+                  muted
                   playsInline
+                  preload="auto"
                   crossOrigin="anonymous"
                   onPlay={() => {
                     setNowPlaying(true);
@@ -484,7 +544,10 @@ export function Studio() {
                     dispatch({ type: "pause" });
                   }}
                   onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
-                  onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
+                  onLoadedMetadata={(e) => {
+                    setDuration(e.currentTarget.duration || 0);
+                    if (e.currentTarget.currentTime < 0.25) void showFrame(8);
+                  }}
                   onError={() => setError("This file would not play in the browser.")}
                 >
                   {source.captionsUrl && sandbox.captionsOn ? (
@@ -494,6 +557,18 @@ export function Studio() {
               ) : (
                 <EmptyStage onPick={loadSample} onFiles={onFiles} />
               )}
+
+              {hintOpen ? (
+                <div className="hint-slip" data-testid="first-run-hint">
+                  <p className="font-display text-[11px] uppercase tracking-[0.18em] text-[var(--walnut)]">Once</p>
+                  <p className="mt-1 max-w-sm text-[13px] leading-5 text-[var(--ink)]">
+                    Palm to pause. Swipe to skip. Thumb held to approve. Palm held to refuse. Look away, or press M.
+                  </p>
+                  <button type="button" className="mt-2 text-[12px] text-[var(--rust)] underline underline-offset-4" onClick={dismissHint}>
+                    Got it
+                  </button>
+                </div>
+              ) : null}
 
               {session.lastStamp ? (
                 <div className="gesture-stamp" data-testid="gesture-stamp">
@@ -641,7 +716,7 @@ function EmptyStage({
     <div className="flex h-full flex-col items-center justify-center px-6 text-center text-[var(--cream)]">
       <p className="font-display text-3xl italic">Drop a film, or pick a reel</p>
       <p className="mt-2 max-w-md text-sm text-[var(--cream)]/70">
-        A local file plus a .vtt works. Two Blender trailers are already here, credited on the ticket.
+        A local file plus a .vtt works. Two Blender trailers are already here, credited under the title.
       </p>
       <div className="mt-6 flex flex-col items-stretch gap-2 sm:flex-row">
         {samples.map((film) => (

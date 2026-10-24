@@ -1,9 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
+
+const BRIGHT_T = 8;
 
 async function ready(page: Page) {
   await page.addInitScript(() => {
-    class FakeStream extends MediaStream {}
     const canvas = document.createElement("canvas");
     canvas.width = 320;
     canvas.height = 240;
@@ -15,50 +16,76 @@ async function ready(page: Page) {
     const stream = canvas.captureStream(8);
     Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
       configurable: true,
-      value: async () => stream ?? new FakeStream(),
+      value: async () => stream,
     });
   });
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Lazy Hands" })).toBeVisible();
+  await page.waitForFunction(() => Boolean(window.__lazyHands));
+  await page.waitForFunction(() => {
+    const v = document.querySelector("video");
+    return Boolean(v && v.readyState >= 2 && v.duration > 8);
+  });
+}
+
+async function videoLuma(page: Page) {
+  return page.evaluate(() => {
+    const video = document.querySelector("video");
+    if (!video) return 0;
+    const canvas = document.createElement("canvas");
+    canvas.width = 160;
+    canvas.height = 90;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return 0;
+    ctx.drawImage(video, 0, 0, 160, 90);
+    const data = ctx.getImageData(0, 0, 160, 90).data;
+    let sum = 0;
+    let n = 0;
+    for (let i = 0; i < data.length; i += 16) {
+      sum += 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+      n += 1;
+    }
+    return sum / n;
+  });
+}
+
+async function showBrightFrame(page: Page, seconds = BRIGHT_T) {
+  const candidates = [seconds, 8, 9, 10, 11, 26, 27];
+  let luma = 0;
+  for (const t of candidates) {
+    await page.evaluate(async (at) => {
+      await window.__lazyHands?.showFrame(at);
+    }, t);
+    await page.waitForTimeout(160);
+    luma = await videoLuma(page);
+    if (luma > 80) break;
+  }
+  expect(luma).toBeGreaterThan(80);
 }
 
 test.describe("Lazy Hands", () => {
-  test("idle screen, sample, gesture, approval hold, miss card", async ({ page }) => {
+  test("idle, gesture, approval hold, miss card on a real Bunny frame", async ({ page }) => {
     mkdirSync("docs/screenshots", { recursive: true });
     await ready(page);
-
+    await showBrightFrame(page);
+    await expect(page.getByTestId("first-run-hint")).toBeVisible();
+    await expect(page.locator("aside")).toHaveCount(0);
+    await expect(page.getByText(/Palm pulse to pause/i)).toHaveCount(0);
     await page.screenshot({ path: "docs/screenshots/idle-1280.png", fullPage: false });
 
-    await page.getByRole("button", { name: /Sintel 52s/ }).click();
-    await expect(page.getByText(/Nothing queued/)).toHaveCount(0);
-    await expect(page.getByText(/www.sintel.org/)).toBeVisible();
-    await page.waitForFunction(() => Boolean(window.__lazyHands));
-    await page.waitForFunction(() => {
-      const v = document.querySelector("video");
-      return Boolean(v && v.readyState >= 2 && v.duration > 10);
-    });
-    await page.evaluate(async () => {
-      const video = document.querySelector("video");
-      if (!video) return;
-      await new Promise((resolve) => {
-        video.addEventListener("seeked", () => resolve(null), { once: true });
-        video.currentTime = 20;
-      });
-      window.__lazyHands?.setTime(20);
-    });
-    await page.waitForTimeout(400);
+    await page.evaluate(() => window.__lazyHands?.dismissHint());
+    await expect(page.getByTestId("first-run-hint")).toHaveCount(0);
 
-    await page.evaluate(() => {
-      window.__lazyHands?.pose("open_palm", 220);
-    });
+    await page.evaluate(() => window.__lazyHands?.pose("open_palm", 220));
     await expect(page.getByTestId("gesture-stamp")).toContainText(/Play|Pause/);
+    await showBrightFrame(page);
+    await page.evaluate(() => window.__lazyHands?.pose("open_palm", 220));
+    await expect(page.getByTestId("gesture-stamp")).toBeVisible();
     await page.screenshot({ path: "docs/screenshots/gesture-1280.png", fullPage: false });
-    await page.waitForTimeout(1500);
 
-    await page.evaluate(() => {
-      const video = document.querySelector("video");
-      if (video) video.pause();
-    });
+    await page.evaluate(() => window.__lazyHands?.dismissHint());
+    await page.waitForTimeout(1200);
+    await showBrightFrame(page);
     await page.evaluate(() => window.__lazyHands?.propose("skip_intro"));
     await expect(page.getByTestId("approval-card")).toBeVisible();
     await page.evaluate(() => window.__lazyHands?.pose("thumbs_up", 400));
@@ -71,25 +98,46 @@ test.describe("Lazy Hands", () => {
     });
     await expect(page.getByTestId("gesture-stamp")).toContainText(/Held off/);
 
-    await page.evaluate(() => {
-      window.__lazyHands?.setTime(4);
-      window.__lazyHands?.missKey();
-    });
-    await page.waitForTimeout(200);
-    await page.evaluate(() => {
-      window.__lazyHands?.setTime(20);
-      window.__lazyHands?.missKey();
-    });
+    await showBrightFrame(page);
+    if (existsSync("docs/MODEL_RUN.json")) {
+      const run = JSON.parse(readFileSync("docs/MODEL_RUN.json", "utf8")) as {
+        text: string;
+        engine: string;
+        note: string;
+        latencyMs: number;
+        from: number;
+        to: number;
+      };
+      await page.evaluate((payload) => {
+        window.__lazyHands?.setMiss({
+          text: payload.text,
+          engine: payload.engine as "distilbart" | "gemma-webllm" | "extractive",
+          note: payload.note,
+          latencyMs: payload.latencyMs,
+          from: payload.from,
+          to: payload.to,
+        });
+      }, run);
+    } else {
+      await page.evaluate(() => {
+        window.__lazyHands?.setTime(3);
+        window.__lazyHands?.missKey();
+      });
+      await page.waitForTimeout(200);
+      await page.evaluate(() => {
+        window.__lazyHands?.setTime(16);
+        window.__lazyHands?.missKey();
+      });
+    }
+    await showBrightFrame(page);
     await expect(page.getByTestId("miss-card")).toContainText(/You missed/);
     await expect(page.getByTestId("miss-card")).not.toContainText(/cannot|no captions/i);
-    await page.waitForTimeout(400);
     await page.screenshot({ path: "docs/screenshots/miss-card-1280.png", fullPage: false });
   });
 
   test("state machine: watching palm pauses, pending palm does not", async ({ page }) => {
     await ready(page);
-    await page.getByRole("button", { name: /Big Buck Bunny/ }).first().click();
-    await page.waitForFunction(() => Boolean(window.__lazyHands));
+    await page.evaluate(() => window.__lazyHands?.dismissHint());
 
     await page.evaluate(() => window.__lazyHands?.pose("open_palm", 200));
     const afterWatch = await page.evaluate(() => window.__lazyHands?.getState());

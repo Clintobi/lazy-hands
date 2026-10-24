@@ -6,6 +6,7 @@ export type SampleFilm = {
   reel: string;
   durationLabel: string;
   src: string;
+  poster: string;
   captions: string;
   introEnd: number;
   credit: string;
@@ -21,6 +22,7 @@ export const samples: SampleFilm[] = [
     reel: "Peach trailer",
     durationLabel: "33s",
     src: "/samples/bunny/clip.mp4",
+    poster: "/samples/bunny/poster.jpg",
     captions: "/samples/bunny/captions.vtt",
     introEnd: 4.2,
     credit: "(c) copyright Blender Foundation | www.bigbuckbunny.org",
@@ -34,6 +36,7 @@ export const samples: SampleFilm[] = [
     reel: "Durian trailer",
     durationLabel: "52s",
     src: "/samples/sintel/clip.mp4",
+    poster: "/samples/sintel/poster.jpg",
     captions: "/samples/sintel/captions.vtt",
     introEnd: 8,
     credit: "(c) copyright Blender Foundation | www.sintel.org",

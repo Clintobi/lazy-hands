@@ -104,13 +104,17 @@ body {
   }
 }
 
-.ticket-rail::before {
-  content: "";
+.hint-slip {
   position: absolute;
-  inset: 12px auto 12px -7px;
-  width: 14px;
-  background: radial-gradient(circle at 3px 8px, var(--paper) 5px, transparent 6px) 0 0 / 14px 18px;
-  pointer-events: none;
+  left: 14px;
+  top: 14px;
+  z-index: 8;
+  max-width: 22rem;
+  background: var(--cream);
+  border-left: 4px solid var(--brass);
+  border-radius: 2px 12px 4px 2px;
+  padding: 0.7rem 0.85rem 0.75rem;
+  box-shadow: 5px 5px 0 rgba(106, 64, 36, 0.22);
 }
 
 .scrub {

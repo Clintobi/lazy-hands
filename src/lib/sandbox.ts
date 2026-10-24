@@ -15,7 +15,7 @@ export type Sandbox = {
 
 export function emptySandbox(): Sandbox {
   return {
-    captionsOn: true,
+    captionsOn: false,
     bookmarks: [],
     notes: [],
     seekTo: null,
