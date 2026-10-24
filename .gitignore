@@ -15,6 +15,8 @@
 /playwright-report
 /test-results
 /blob-report
+/docs/demo/*.webm
+!/docs/demo/lazy-hands-demo.webm
 
 # MediaPipe wasm is copied on npm install
 /public/models/mediapipe/wasm

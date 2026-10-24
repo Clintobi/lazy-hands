@@ -10,7 +10,8 @@
     "postinstall": "node scripts/copy-mediapipe.mjs",
     "test": "vitest run",
     "measure": "vitest run tests/measure.test.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "demo": "node scripts/record-demo.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.1",

@@ -143,6 +143,14 @@ function twoOrThree(text: string): string {
   return sentences.slice(0, 3).join(" ");
 }
 
+export function isUsableSummary(text: string, source: string): boolean {
+  const t = text.replace(/\s+/g, " ").trim();
+  if (t.length < 24) return false;
+  const refused = /i (cannot|can't|am unable|do not have)|please provide|as an ai|no captions covered/i;
+  if (refused.test(t) && source.trim().length > 0) return false;
+  return true;
+}
+
 export async function summariseGap(
   transcript: string,
   opts: { allowRemoteWeights?: boolean } = {},
@@ -182,13 +190,21 @@ export async function summariseGap(
     const t5 = await loadT5();
     if (t5) {
       try {
-        const raw = await t5(transcript || "No captions.");
-        return {
-          text: twoOrThree(raw || fallback),
-          engine: "lamini-t5",
-          latencyMs: nowMs() - started,
-          note: "Gemma did not load on this device. LaMini-Flan-T5-77M ran locally through transformers.js.",
-        };
+        const raw = await Promise.race([
+          t5(transcript || "No captions."),
+          new Promise<string>((_, reject) => {
+            setTimeout(() => reject(new Error("t5-timeout")), 8000);
+          }),
+        ]);
+        const text = twoOrThree(raw || fallback);
+        if (isUsableSummary(text, transcript)) {
+          return {
+            text,
+            engine: "lamini-t5",
+            latencyMs: nowMs() - started,
+            note: "Gemma did not load on this device. LaMini-Flan-T5-77M ran locally through transformers.js.",
+          };
+        }
       } catch {
         // fall through
       }

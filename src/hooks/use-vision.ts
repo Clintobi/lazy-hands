@@ -29,6 +29,7 @@ export function useVision(enabled: boolean, onHand: HandCb, onFace: (visible: bo
 
     async function start() {
       setStatus("asking");
+      // Fail closed to a quiet lamp if the browser never answers.
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { width: 640, height: 480, facingMode: "user" },

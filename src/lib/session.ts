@@ -34,6 +34,7 @@ export type SessionState = {
   palmFired: boolean;
   awayHiddenMs: number;
   awayFromVideoTime: number | null;
+  sawFace: boolean;
   cooldownUntil: number;
   lastStamp: null | { label: string; at: number };
   log: ApprovalLogEntry[];
@@ -68,6 +69,7 @@ export function initialSession(now = 0): SessionState {
     palmFired: false,
     awayHiddenMs: 0,
     awayFromVideoTime: null,
+    sawFace: false,
     cooldownUntil: now,
     lastStamp: null,
     log: [],
@@ -154,6 +156,7 @@ export function reduceSession(
     }
     case "face": {
       if (event.visible) {
+        next.sawFace = true;
         if (next.attention === "away" && next.awayFromVideoTime != null) {
           const from = next.awayFromVideoTime;
           const span = event.videoTime - from;
@@ -167,7 +170,7 @@ export function reduceSession(
         } else {
           next.awayHiddenMs = 0;
         }
-      } else if (next.attention === "present" && next.mode === "watching") {
+      } else if (next.attention === "present" && next.mode === "watching" && next.sawFace) {
         next.awayHiddenMs += event.dt;
         if (next.awayHiddenMs >= AWAY_ARM_MS) {
           next.attention = "away";
@@ -215,7 +218,7 @@ export function reduceSession(
         next.approval.hold.ms += event.dt;
       }
 
-      if (next.approval.hold.ms >= HOLD_MS && !cooling) {
+      if (next.approval.hold.ms >= HOLD_MS) {
         const proposal = next.approval.proposal;
         const holdMs = next.approval.hold.ms;
         const entry: ApprovalLogEntry = {

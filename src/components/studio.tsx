@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { HoldRing } from "@/components/hold-ring";
 import { Button } from "@/components/ui/button";
 import { HandMark, LampMark, Sprocket } from "@/components/icons";
@@ -78,6 +78,9 @@ export function Studio() {
   const [error, setError] = useState<string | null>(null);
   const sessionRef = useRef(session);
   sessionRef.current = session;
+  const cuesRef = useRef(cues);
+  cuesRef.current = cues;
+  const ignoreCameraUntil = useRef(0);
 
   const applyEffects = useCallback((effects: SessionEffect[]) => {
     const video = videoRef.current;
@@ -101,7 +104,7 @@ export function Studio() {
           if (next.seekTo != null && video) video.currentTime = next.seekTo;
           if (next.summariseLast != null && video) {
             const from = Math.max(0, video.currentTime - next.summariseLast);
-            void runSummary(from, video.currentTime);
+            void runSummary(from, video.currentTime, cuesRef.current);
           }
           return next;
         });
@@ -110,7 +113,7 @@ export function Studio() {
         setSandbox((box) => recordLog(box, effect.entry));
       }
       if (effect.type === "summarise") {
-        void runSummary(effect.from, effect.to);
+        void runSummary(effect.from, effect.to, cuesRef.current);
       }
     }
   }, []);
@@ -127,23 +130,23 @@ export function Studio() {
     [applyEffects],
   );
 
-  async function runSummary(from: number, to: number) {
-    setMissLoading(true);
+  async function runSummary(from: number, to: number, sourceCues = cuesRef.current) {
     setError(null);
+    const slice = sourceCues.filter((c) => c.end > from && c.start < to);
+    const transcript = slice.map((c) => c.text).join(" ");
+    const quick = { ...summariseCues(sourceCues, from, to), from, to };
+    setMiss(quick);
+    setMissLoading(false);
+    const allowWeights = process.env.NEXT_PUBLIC_FORCE_EXTRACTIVE !== "1";
+    if (!allowWeights) return;
     try {
-      const slice = cues.filter((c) => c.end > from && c.start < to);
-      const transcript = slice.map((c) => c.text).join(" ");
-      const allowWeights = process.env.NEXT_PUBLIC_FORCE_EXTRACTIVE !== "1";
-      const result = allowWeights
-        ? await summariseGap(transcript, { allowRemoteWeights: true })
-        : summariseCues(cues, from, to);
-      setMiss({ ...result, from, to });
+      const result = await summariseGap(transcript, { allowRemoteWeights: true });
+      const { isUsableSummary } = await import("@/lib/summarize");
+      if (result.engine !== "extractive" && isUsableSummary(result.text, transcript)) {
+        setMiss({ ...result, from, to });
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "The recap failed.");
-      const fallback = summariseCues(cues, from, to);
-      setMiss({ ...fallback, from, to });
-    } finally {
-      setMissLoading(false);
+      setError(err instanceof Error ? err.message : null);
     }
   }
 
@@ -176,6 +179,7 @@ export function Studio() {
 
   const onHand = useCallback(
     (pose: PoseName, swipe: "left" | "right" | null, _latency: number) => {
+      if (performance.now() < ignoreCameraUntil.current) return;
       const now = performance.now();
       const dt = Math.min(80, now - lastTick.current);
       lastTick.current = now;
@@ -190,6 +194,7 @@ export function Studio() {
 
   const onFace = useCallback(
     (visible: boolean) => {
+      if (performance.now() < ignoreCameraUntil.current) return;
       const now = performance.now();
       const dt = Math.min(80, now - lastTick.current);
       dispatch({ type: "face", visible, dt, videoTime: videoRef.current?.currentTime ?? 0 });
@@ -292,8 +297,14 @@ export function Studio() {
         captionsOn: sandbox.captionsOn,
         logCount: sandbox.log.length,
       }),
-      pose: (pose, dt) => dispatch({ type: "pose", pose, dt }),
-      swipe: (dir) => dispatch({ type: "swipe", dir }),
+      pose: (pose, dt) => {
+        ignoreCameraUntil.current = performance.now() + 2500;
+        dispatch({ type: "pose", pose, dt });
+      },
+      swipe: (dir) => {
+        ignoreCameraUntil.current = performance.now() + 2500;
+        dispatch({ type: "swipe", dir });
+      },
       propose: (kind) => {
         if (!ACTION_KINDS.includes(kind)) return;
         dispatch({
@@ -354,9 +365,13 @@ export function Studio() {
   const proposal = session.approval?.proposal ?? null;
   const lampLit = vision.status === "live" && (vision.seeingFace || vision.seeingHand);
 
-  const publicCue = useMemo(() => {
-    return cues.find((c) => time >= c.start && time < c.end)?.text ?? "";
-  }, [cues, time]);
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    for (const track of Array.from(video.textTracks)) {
+      track.mode = proposal || miss ? "hidden" : sandbox.captionsOn ? "showing" : "hidden";
+    }
+  }, [proposal, miss, sandbox.captionsOn, source]);
 
   return (
     <div
@@ -432,7 +447,7 @@ export function Studio() {
                         ? "Sees a hand"
                         : "Looking"
                     : vision.status === "asking"
-                      ? "Asking"
+                      ? "Camera"
                       : vision.status === "denied"
                         ? "Lamp out"
                         : vision.status === "failed"
@@ -492,11 +507,49 @@ export function Studio() {
                 </p>
               ) : null}
 
-              {sandbox.captionsOn && publicCue && !source?.captionsUrl ? (
-                <p className="absolute inset-x-8 bottom-6 text-center font-display text-lg text-[var(--cream)]">
-                  {publicCue}
-                </p>
-              ) : null}
+              <div className="pointer-events-none absolute inset-x-3 bottom-3 z-10 flex flex-col gap-2 sm:inset-x-5 sm:bottom-5">
+                {proposal ? (
+                  <article
+                    className="approval-card pointer-events-auto"
+                    data-testid="approval-card"
+                    data-kind={proposal.kind}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-display text-[11px] uppercase tracking-[0.22em] text-[var(--brass)]">
+                          The model asks
+                        </p>
+                        <h2 className="mt-1 font-display text-[1.35rem] leading-7 italic sm:text-[1.55rem]">{proposal.title}</h2>
+                        <p className="mt-1 max-w-xl text-[13px] leading-5 text-[var(--ink)]/80">{proposal.detail}</p>
+                        <p className="mt-2 text-[11px] text-[var(--walnut)]">
+                          Hold a thumb up to agree. Hold an open palm to stop. About {HOLD_MS / 1000}s, so a twitch does not count.
+                        </p>
+                      </div>
+                      <HoldRing progress={progress} intent={session.approval?.hold?.intent ?? null} />
+                    </div>
+                  </article>
+                ) : null}
+
+                {miss || missLoading ? (
+                  <article className="miss-card pointer-events-auto" data-testid="miss-card">
+                    <p className="font-display text-[12px] uppercase tracking-[0.18em] text-[var(--rust)]">
+                      {missLoading
+                        ? "Reading the gap"
+                        : `You missed ${formatSpan((miss?.to ?? 0) - (miss?.from ?? 0))}`}
+                    </p>
+                    {missLoading ? (
+                      <p className="mt-2 text-sm text-[var(--ink)]/70">The local model is gathering the captions.</p>
+                    ) : (
+                      <>
+                        <p className="mt-1 max-w-2xl text-[0.98rem] leading-6">{miss?.text}</p>
+                        <p className="mt-2 text-[11px] uppercase tracking-[0.14em] text-[var(--walnut)]">
+                          {miss?.note} · {Math.round(miss?.latencyMs ?? 0)} ms
+                        </p>
+                      </>
+                    )}
+                  </article>
+                ) : null}
+              </div>
             </div>
           </section>
 
@@ -568,50 +621,6 @@ export function Studio() {
               {error}
             </p>
           ) : null}
-
-          <div className="relative mt-4 min-h-[8rem]">
-            {proposal ? (
-              <article
-                className="approval-card"
-                data-testid="approval-card"
-                data-kind={proposal.kind}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="font-display text-[11px] uppercase tracking-[0.22em] text-[var(--brass)]">
-                      The model asks
-                    </p>
-                    <h2 className="mt-2 font-display text-[1.65rem] leading-8 italic">{proposal.title}</h2>
-                    <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--ink)]/80">{proposal.detail}</p>
-                    <p className="mt-3 text-[12px] text-[var(--walnut)]">
-                      Hold a thumb up to agree. Hold an open palm to stop. About {HOLD_MS / 1000}s, so a twitch does not count.
-                    </p>
-                  </div>
-                  <HoldRing progress={progress} intent={session.approval?.hold?.intent ?? null} />
-                </div>
-              </article>
-            ) : null}
-
-            {miss || missLoading ? (
-              <article className={cn("miss-card", proposal && "mt-3")} data-testid="miss-card">
-                <p className="font-display text-[12px] uppercase tracking-[0.18em] text-[var(--rust)]">
-                  {missLoading
-                    ? "Reading the gap"
-                    : `You missed ${formatSpan((miss?.to ?? 0) - (miss?.from ?? 0))}`}
-                </p>
-                {missLoading ? (
-                  <p className="mt-2 text-sm text-[var(--ink)]/70">The local model is gathering the captions.</p>
-                ) : (
-                  <>
-                    <p className="mt-2 max-w-2xl text-[1.05rem] leading-7">{miss?.text}</p>
-                    <p className="mt-3 text-[11px] uppercase tracking-[0.14em] text-[var(--walnut)]">
-                      {miss?.note} · {Math.round(miss?.latencyMs ?? 0)} ms
-                    </p>
-                  </>
-                )}
-              </article>
-            ) : null}
-          </div>
         </main>
       </div>
 

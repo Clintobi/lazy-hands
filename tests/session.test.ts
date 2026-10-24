@@ -71,6 +71,16 @@ describe("watching vs approval_pending", () => {
     expect(s.mode).toBe("approval_pending");
   });
 
+  it("can refuse during a play-pause cooldown", () => {
+    let s = initialSession(0);
+    s = step(s, { type: "pose", pose: "open_palm", dt: PALM_PULSE_MS }, 10).state;
+    expect(s.playback).toBe("playing");
+    s = step(s, { type: "propose", proposal: phraseProposal("skip_intro", { introEnd: 8 }) }, 20).state;
+    const done = step(s, { type: "pose", pose: "open_palm", dt: HOLD_MS }, 30);
+    expect(done.state.mode).toBe("watching");
+    expect(done.state.log[0]?.decision).toBe("rejected");
+  });
+
   it("keeps swipe available during an approval", () => {
     let s = initialSession(0);
     s = step(s, { type: "propose", proposal: phraseProposal("summarise_recent") }, 10).state;
@@ -113,12 +123,20 @@ describe("look away", () => {
   it("summarises after a long gap, not a blink", () => {
     let s = initialSession(0);
     s = step(s, { type: "play" }, 1).state;
+    s = step(s, { type: "face", visible: true, dt: 20, videoTime: 2 }, 8, 2).state;
     const blink = step(s, { type: "face", visible: false, dt: 200, videoTime: 3 }, 20, 3);
     expect(blink.state.attention).toBe("present");
     let away = step(blink.state, { type: "face", visible: false, dt: 900, videoTime: 4 }, 40, 4).state;
     expect(away.attention).toBe("away");
     const back = step(away, { type: "face", visible: true, dt: 20, videoTime: 12 }, 80, 12);
     expect(back.effects.some((e) => e.type === "summarise")).toBe(true);
+  });
+
+  it("does not treat a missing face as away until one has been seen", () => {
+    let s = initialSession(0);
+    s = step(s, { type: "play" }, 1).state;
+    const gone = step(s, { type: "face", visible: false, dt: 2000, videoTime: 5 }, 20, 5);
+    expect(gone.state.attention).toBe("present");
   });
 
   it("toggles away with the miss key", () => {

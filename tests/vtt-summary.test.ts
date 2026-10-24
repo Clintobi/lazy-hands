@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { pickProposal, phraseProposal, resetProposalIds } from "@/lib/proposals";
 import { applyProposal, emptySandbox } from "@/lib/sandbox";
-import { extractiveSummary, summariseCues } from "@/lib/summarize";
+import { extractiveSummary, isUsableSummary, summariseCues } from "@/lib/summarize";
 import { cuesInRange, parseVtt } from "@/lib/vtt";
 
 describe("vtt", () => {
@@ -30,6 +30,13 @@ describe("extractive summary", () => {
 
   it("admits when a gap has no captions", () => {
     expect(extractiveSummary("")).toMatch(/no captions/i);
+  });
+
+  it("rejects a model refusal as unusable", () => {
+    expect(
+      isUsableSummary("I cannot summarize the content of a text without knowing which text.", "A dragon fills the sky."),
+    ).toBe(false);
+    expect(isUsableSummary("A young woman walks a mountain path. A dragon fills the sky.", "captions")).toBe(true);
   });
 });
 
