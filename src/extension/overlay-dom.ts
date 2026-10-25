@@ -1,4 +1,4 @@
-import { holdHint, onceHint } from "../lib/overlay-copy";
+import { approvalKicker, holdHint, onceHint } from "../lib/overlay-copy";
 import type { PublicController } from "../lib/video-controller";
 
 export function mountOverlay(host: HTMLElement, hooks: { onDismissHint?: () => void } = {}) {
@@ -25,10 +25,10 @@ export function mountOverlay(host: HTMLElement, hooks: { onDismissHint?: () => v
           ${state.stamp ? `<div class="lh-stamp">${escapeHtml(state.stamp)}</div>` : ""}
           ${
             state.proposal
-              ? `<article class="lh-card">
-                  <p class="lh-kicker">${state.proposal.destructive ? "Hold to confirm" : "The model asks"}</p>
+              ? `<article class="lh-card" data-testid="approval-card" data-risk="${escapeHtml(state.proposal.riskTier ?? (state.proposal.destructive ? "high" : "low"))}">
+                  <p class="lh-kicker">${escapeHtml(approvalKicker(state.proposal))}</p>
                   <h2>${escapeHtml(state.proposal.title)}</h2>
-                  <p>${escapeHtml(state.proposal.detail)}</p>
+                  <p>${escapeHtml(state.proposal.riskBlurb ?? state.proposal.detail)}</p>
                   <p class="lh-fine">${escapeHtml(holdHint(state.proposal))}</p>
                   <div class="lh-ring" style="--p:${state.holdProgress}">${state.holdIntent === "approve" ? "Yes" : state.holdIntent === "reject" ? "No" : "Hold"}</div>
                 </article>`

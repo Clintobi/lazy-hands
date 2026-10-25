@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { phraseAgentCommand, phrasePageConfirm, phraseProposal } from "@/lib/proposals";
-import { HOLD_MS } from "@/lib/session";
+import { HOLD_MS, requiredHoldMs } from "@/lib/session";
 import { VideoController } from "@/lib/video-controller";
 import type { VideoHandle } from "@/lib/video-controller";
 
@@ -132,12 +132,11 @@ describe("approval bridge through the controller", () => {
     const ctl = new VideoController({
       onDecision: (_p, decision) => decisions.push(decision),
     });
-    ctl.dispatch(
-      { type: "propose", proposal: phraseAgentCommand("rm -rf tmp", "/tmp"), force: true },
-      5,
-    );
-    ctl.dispatch({ type: "pose", pose: "open_palm", dt: HOLD_MS }, 20);
+    const destructive = phraseAgentCommand("rm -rf tmp", "/tmp");
+    ctl.dispatch({ type: "propose", proposal: destructive, force: true }, 5);
+    ctl.dispatch({ type: "pose", pose: "open_palm", dt: requiredHoldMs(destructive) }, 20);
     expect(decisions).toEqual(["rejected"]);
+    expect(requiredHoldMs(destructive)).toBeGreaterThan(HOLD_MS);
 
     ctl.dispatch(
       { type: "propose", proposal: phraseAgentCommand("echo later", "/tmp"), force: true },

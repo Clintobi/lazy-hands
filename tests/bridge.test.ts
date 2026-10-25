@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { ApprovalBridge } from "@/bridge/server";
 import { phraseAgentCommand } from "@/lib/proposals";
-import { HOLD_MS } from "@/lib/session";
+import { HOLD_MS, requiredHoldMs } from "@/lib/session";
 import { VideoController } from "@/lib/video-controller";
 
 const bridges: ApprovalBridge[] = [];
@@ -62,8 +62,13 @@ describe("approval bridge", () => {
       },
       5,
     );
-    ctl.dispatch({ type: "pose", pose: "open_palm", dt: HOLD_MS }, 15);
+    const refuseMs = requiredHoldMs({
+      ...phraseAgentCommand(ask.command, ask.cwd),
+      payload: { ...ask, askId: ask.id },
+    });
+    ctl.dispatch({ type: "pose", pose: "open_palm", dt: refuseMs }, 15);
     expect((await pending).decision).toBe("rejected");
+    expect(refuseMs).toBeGreaterThan(HOLD_MS);
 
     const timed = bridge.ask("echo later", "/tmp", 40);
     const late = await timed;

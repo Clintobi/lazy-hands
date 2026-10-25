@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { createConnection } from "node:net";
 import { BRIDGE_PORT, parseBridgeMessage, wsUrl, type BridgeAnswer, type BridgeAsk } from "../lib/bridge-protocol";
+import { formatRiskLine, rateCommand } from "../lib/risk";
 import { ApprovalBridge } from "./server";
 
 function help() {
@@ -10,7 +11,8 @@ function help() {
   lazyhands approve [--timeout 90] -- <command>
 
 The approve command waits for a held thumbs-up from the Lazy Hands extension
-or the web player. A held palm, or a timeout, refuses and the command does not run.
+or the web player. A one-line local risk rating prints first. Higher risk
+needs a longer hold. A held palm, or a timeout, refuses and the command does not run.
 `;
 }
 
@@ -116,7 +118,16 @@ export async function main(argv = process.argv) {
     }
     await ensureServer(port);
     const line = rest.join(" ");
-    process.stdout.write(`Waiting for a thumbs-up to run:\n  ${line}\n`);
+    const rating = rateCommand(line);
+    process.stdout.write(`Waiting for a thumbs-up to run:\n  ${line}\n  ${formatRiskLine(rating)}\n`);
+    void import("../lib/risk-model")
+      .then(({ rateCommandWithModel }) => rateCommandWithModel(line))
+      .then((next) => {
+        if (next.engine !== "heuristic") {
+          process.stdout.write(`  ${formatRiskLine(next)}\n`);
+        }
+      })
+      .catch(() => undefined);
     const answer = await approveRemote(port, line, process.cwd(), timeoutMs);
     if (answer.decision !== "approved") {
       process.stderr.write(`Refused (${answer.decision}). Command not run.\n`);

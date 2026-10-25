@@ -9,11 +9,11 @@ import { brand } from "@/lib/brand";
 import { cn } from "@/lib/cn";
 import { formatClock, formatSpan } from "@/lib/format";
 import type { PoseName } from "@/lib/gestures";
+import { approvalKicker, holdHint } from "@/lib/overlay-copy";
 import { ACTION_KINDS, pickProposal, phraseProposal, type ActionKind, type Proposal } from "@/lib/proposals";
 import { applyProposal, emptySandbox, recordLog, type Sandbox } from "@/lib/sandbox";
 import { sampleById, samples, type SampleFilm } from "@/lib/samples";
 import {
-  HOLD_MS,
   holdProgress,
   initialSession,
   reduceSession,
@@ -594,17 +594,18 @@ export function Studio() {
                     className="approval-card pointer-events-auto"
                     data-testid="approval-card"
                     data-kind={proposal.kind}
+                    data-risk={proposal.riskTier ?? (proposal.destructive ? "high" : "low")}
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="font-display text-[11px] uppercase tracking-[0.22em] text-[var(--brass)]">
-                          The model asks
+                          {approvalKicker(proposal)}
                         </p>
                         <h2 className="mt-1 font-display text-[1.35rem] leading-7 italic sm:text-[1.55rem]">{proposal.title}</h2>
-                        <p className="mt-1 max-w-xl text-[13px] leading-5 text-[var(--ink)]/80">{proposal.detail}</p>
-                        <p className="mt-2 text-[11px] text-[var(--walnut)]">
-                          Hold a thumb up to agree. Hold an open palm to stop. About {HOLD_MS / 1000}s, so a twitch does not count.
+                        <p className="mt-1 max-w-xl text-[13px] leading-5 text-[var(--ink)]/80">
+                          {proposal.riskBlurb ?? proposal.detail}
                         </p>
+                        <p className="mt-2 text-[11px] text-[var(--walnut)]">{holdHint(proposal)}</p>
                       </div>
                       <HoldRing progress={progress} intent={session.approval?.hold?.intent ?? null} />
                     </div>

@@ -241,6 +241,135 @@
     }));
   }
 
+  // src/lib/risk.ts
+  var HOLD_BY_TIER = {
+    low: 800,
+    medium: 1200,
+    high: 1800,
+    critical: 2400
+  };
+  var CRITICAL = [
+    /\brm\s+-[a-zA-Z]*r[a-zA-Z]*f\b/i,
+    /\brm\s+-[a-zA-Z]*f[a-zA-Z]*r\b/i,
+    /\bdd\b[\s\S]*\bif=/i,
+    /\bmkfs\b/i,
+    /\bwipefs\b/i,
+    /\b(shutdown|reboot|halt|poweroff)\b/i,
+    /\bdrop\s+(database|schema|table|db)\b/i,
+    /\bgit\s+push\b[\s\S]*(--force-with-lease|--force|-f\b)/i,
+    /\bgit\s+reset\b[\s\S]*--hard\b/i,
+    /\bkubectl\s+delete\b/i,
+    /\b(npm|pnpm|yarn|poetry|twine|gem|cargo)\s+publish\b/i,
+    /\bnpm\s+unpublish\b/i,
+    /\bchmod\s+-R\s+777\s+\//i,
+    /\bdiskutil\s+erase/i,
+    /\bterraform\s+destroy\b/i,
+    /\bfind\b[\s\S]*\s-delete\b/i,
+    /\bdocker\s+system\s+prune\b/i
+  ];
+  var HIGH = [
+    /\bsudo\b/i,
+    /\brm\b/i,
+    /\bgit\s+push\b/i,
+    /\bgit\s+reset\b/i,
+    /\bgit\s+checkout\s+\./i,
+    /\b(delete|unlink|truncate)\b/i,
+    /\bkill\s+-9\b/i,
+    /\b(chmod|chown)\b/i,
+    /\bnpm\s+uninstall\s+-g\b/i,
+    /\bdocker\s+rm\b/i,
+    /\bhelm\s+uninstall\b/i,
+    /\bmv\b[\s\S]*\/dev\/null/i,
+    /\b(curl|wget)\b[\s\S]*\|\s*(sudo\s+)?(ba)?sh\b/i,
+    /\bcat\b[\s\S]*(\.env|id_rsa|id_ed25519|\.ssh\/)/i,
+    /\bgit\s+show\b[\s\S]*\.env/i
+  ];
+  var LOW_WHOLE = /^(echo|ls|pwd|whoami|date|true|false|hostname|uname|which|type|git\s+(status|diff|log|branch)|npm\s+(test|run)|pnpm\s+(test|run)|yarn\s+(test|run)|node\s+-(-version|v)|python3?\s+-(-version|V))(\s|$)/i;
+  function clipCommand(command, max = 72) {
+    const clean = command.replace(/\s+/g, " ").trim();
+    if (clean.length <= max) return clean;
+    return `${clean.slice(0, max - 1)}\u2026`;
+  }
+  function classifyCommandTier(command) {
+    const line = command.replace(/\s+/g, " ").trim();
+    if (!line) return "medium";
+    if (CRITICAL.some((re) => re.test(line))) return "critical";
+    if (HIGH.some((re) => re.test(line))) return "high";
+    if (LOW_WHOLE.test(line) && !/[|&;]/.test(line)) return "low";
+    return "medium";
+  }
+  function heuristicBlurb(command, tier) {
+    const line = command.replace(/\s+/g, " ").trim();
+    if (!line) return "Empty command. Nothing runs until something concrete is waiting.";
+    if (/\brm\s+-[a-zA-Z]*[rf][a-zA-Z]*[rf]\b/i.test(line)) {
+      const target = line.replace(/^[\s\S]*?\brm\s+-[a-zA-Z]+\s+/i, "").trim() || "those paths";
+      return `This would recursively delete ${clipCommand(target, 48)}.`;
+    }
+    if (/\bgit\s+push\b/i.test(line) && /--force-with-lease|--force|-f\b/.test(line)) {
+      return "This would overwrite remote git history.";
+    }
+    if (/\bgit\s+reset\b[\s\S]*--hard\b/i.test(line)) {
+      return "This would throw away uncommitted work.";
+    }
+    if (/\b(npm|pnpm|yarn|poetry|twine|gem|cargo)\s+publish\b/i.test(line)) {
+      return "This would publish a package to a public registry.";
+    }
+    if (/\b(shutdown|reboot|halt|poweroff)\b/i.test(line)) {
+      return "This would shut the machine down.";
+    }
+    if (/\bdrop\s+(database|schema|table|db)\b/i.test(line)) {
+      return "This would drop a database object.";
+    }
+    if (/\bkubectl\s+delete\b/i.test(line)) {
+      return "This would delete a Kubernetes object.";
+    }
+    if (/\bsudo\b/i.test(line)) {
+      return "This would run with elevated privileges.";
+    }
+    if (tier === "low") return `Looks like a read or print: ${clipCommand(line)}.`;
+    if (tier === "high") return `This can change files or remotes: ${clipCommand(line)}.`;
+    return `A command is waiting: ${clipCommand(line)}.`;
+  }
+  function rateCommand(command) {
+    const tier = classifyCommandTier(command);
+    return {
+      tier,
+      holdMs: HOLD_BY_TIER[tier],
+      blurb: heuristicBlurb(command, tier),
+      engine: "heuristic",
+      note: "Local heuristic. The model has not rewritten this line yet."
+    };
+  }
+  function ratePageLabel(label, destructive) {
+    if (destructive) {
+      return {
+        tier: "high",
+        holdMs: HOLD_BY_TIER.high,
+        blurb: `This looks like it could change something (${label}).`,
+        engine: "heuristic",
+        note: "Label heuristic. Destructive page confirms use the long hold."
+      };
+    }
+    return {
+      tier: "low",
+      holdMs: HOLD_BY_TIER.low,
+      blurb: `A held thumb clicks ${label}. A held palm leaves it alone.`,
+      engine: "heuristic",
+      note: "Label heuristic."
+    };
+  }
+  function formatRiskKicker(tier, holdMs) {
+    const label = (tier ?? "low").replace(/^./, (c) => c.toUpperCase());
+    return `${label} \xB7 ${secondsLabel(holdMs)} hold`;
+  }
+  function secondsLabel(ms) {
+    return `${(ms / 1e3).toFixed(1).replace(/\.0$/, "")}s`;
+  }
+  function formatAgentDetail(command, cwd, rating) {
+    const where = cwd ? ` \xB7 ${cwd}` : "";
+    return `${rating.blurb}${where}`;
+  }
+
   // src/lib/proposals.ts
   var seq = 0;
   function id(kind) {
@@ -312,31 +441,36 @@
     }
   }
   function phraseAgentCommand(command, cwd) {
+    const risk = rateCommand(command);
     return {
       id: id("agent_command"),
       kind: "agent_command",
       source: "bridge",
-      destructive: looksDestructiveCommand(command),
-      title: "Run this command?",
-      detail: cwd ? `${command} \xB7 ${cwd}` : command,
-      payload: { command, cwd }
+      destructive: risk.tier === "high" || risk.tier === "critical",
+      title: risk.tier === "critical" ? "Hold longer to run this?" : "Run this command?",
+      detail: formatAgentDetail(command, cwd, risk),
+      payload: { command, cwd, riskTier: risk.tier, holdMs: risk.holdMs },
+      holdMs: risk.holdMs,
+      riskTier: risk.tier,
+      riskBlurb: risk.blurb,
+      riskEngine: risk.engine
     };
   }
   function phrasePageConfirm(label, selector = "", destructive = false) {
+    const risk = ratePageLabel(label, destructive);
     return {
       id: id("page_confirm"),
       kind: "page_confirm",
       source: "page",
       destructive,
       title: destructive ? `Hold to confirm: ${label}` : `${label}?`,
-      detail: destructive ? "This looks like it could change something. A flick will not click it." : "A held thumb clicks the button. A held palm leaves it alone.",
-      payload: { label, selector, destructive }
+      detail: risk.blurb,
+      payload: { label, selector, destructive, riskTier: risk.tier, holdMs: risk.holdMs },
+      holdMs: risk.holdMs,
+      riskTier: risk.tier,
+      riskBlurb: risk.blurb,
+      riskEngine: risk.engine
     };
-  }
-  function looksDestructiveCommand(command) {
-    return /\b(rm|sudo|dd|mkfs|shutdown|reboot|drop|delete|reset --hard|push --force|npm publish|kubectl delete)\b/i.test(
-      command
-    );
   }
   function pickProposal(ctx) {
     if (ctx.mode !== "watching" || ctx.attention !== "present") return null;
@@ -439,9 +573,17 @@
       log: []
     };
   }
+  function requiredHoldMs(proposal) {
+    if (!proposal) return HOLD_MS;
+    if (typeof proposal.holdMs === "number" && Number.isFinite(proposal.holdMs) && proposal.holdMs >= HOLD_MS) {
+      return proposal.holdMs;
+    }
+    if (proposal.destructive) return HOLD_BY_TIER.high;
+    return HOLD_MS;
+  }
   function holdProgress(state) {
     if (state.mode !== "approval_pending" || !state.approval?.hold) return 0;
-    return Math.min(1, state.approval.hold.ms / HOLD_MS);
+    return Math.min(1, state.approval.hold.ms / requiredHoldMs(state.approval.proposal));
   }
   function reduceSession(state, event, now, videoTime = 0) {
     const next = {
@@ -583,7 +725,7 @@
         } else {
           next.approval.hold.ms += event.dt;
         }
-        if (next.approval.hold.ms >= HOLD_MS) {
+        if (next.approval.hold.ms >= requiredHoldMs(next.approval.proposal)) {
           const proposal = next.approval.proposal;
           const holdMs = next.approval.hold.ms;
           const entry = {
@@ -716,6 +858,18 @@
         videoId: this.video?.id
       };
     }
+    refresh() {
+      this.emit();
+    }
+    applyRiskBlurb(proposal, rating) {
+      if (this.session.approval?.proposal.id !== proposal.id) return proposal;
+      const command = String(proposal.payload.command ?? "");
+      proposal.riskBlurb = rating.blurb;
+      proposal.riskEngine = rating.engine;
+      proposal.detail = formatAgentDetail(command, String(proposal.payload.cwd ?? ""), rating);
+      this.emit();
+      return proposal;
+    }
     apply(effects) {
       for (const effect of effects) {
         if (effect.type === "toggle_playback" && this.video) {
@@ -768,14 +922,23 @@
 
   // src/lib/overlay-copy.ts
   function holdHint(proposal) {
-    if (!proposal) return `Hold a thumb about ${HOLD_MS / 1e3}s to agree. Hold a palm to stop.`;
-    if (proposal.destructive) {
-      return `This one can change something. Hold a thumb about ${HOLD_MS / 1e3}s. A flick does nothing.`;
+    const ms = requiredHoldMs(proposal);
+    const seconds = (ms / 1e3).toFixed(1).replace(/\.0$/, "");
+    if (!proposal) return `Hold a thumb about ${seconds}s to agree. Hold a palm to stop.`;
+    if (proposal.riskTier === "critical" || proposal.destructive) {
+      return `This one can change something. Hold a thumb about ${seconds}s. A flick does nothing.`;
     }
-    return `Hold a thumb up to agree. Hold an open palm to stop. About ${HOLD_MS / 1e3}s, so a twitch does not count.`;
+    return `Hold a thumb up to agree. Hold an open palm to stop. About ${seconds}s, so a twitch does not count.`;
   }
   function onceHint() {
     return "Palm to pause. Swipe to skip. Thumb held to approve. Palm held to refuse. Look away, or press M.";
+  }
+  function approvalKicker(proposal) {
+    if (proposal.source === "bridge") {
+      return formatRiskKicker(proposal.riskTier, requiredHoldMs(proposal));
+    }
+    if (proposal.destructive) return "Hold to confirm";
+    return "The model asks";
   }
 
   // src/extension/overlay-dom.ts
@@ -797,10 +960,10 @@
         <div class="lh-layer">
           ${state.hint ? `<aside class="lh-hint"><p class="lh-kicker">Once</p><p>${escapeHtml(onceHint())}</p><button type="button" data-lh="got-it">Got it</button></aside>` : ""}
           ${state.stamp ? `<div class="lh-stamp">${escapeHtml(state.stamp)}</div>` : ""}
-          ${state.proposal ? `<article class="lh-card">
-                  <p class="lh-kicker">${state.proposal.destructive ? "Hold to confirm" : "The model asks"}</p>
+          ${state.proposal ? `<article class="lh-card" data-testid="approval-card" data-risk="${escapeHtml(state.proposal.riskTier ?? (state.proposal.destructive ? "high" : "low"))}">
+                  <p class="lh-kicker">${escapeHtml(approvalKicker(state.proposal))}</p>
                   <h2>${escapeHtml(state.proposal.title)}</h2>
-                  <p>${escapeHtml(state.proposal.detail)}</p>
+                  <p>${escapeHtml(state.proposal.riskBlurb ?? state.proposal.detail)}</p>
                   <p class="lh-fine">${escapeHtml(holdHint(state.proposal))}</p>
                   <div class="lh-ring" style="--p:${state.holdProgress}">${state.holdIntent === "approve" ? "Yes" : state.holdIntent === "reject" ? "No" : "Hold"}</div>
                 </article>` : ""}
@@ -1023,13 +1186,14 @@
     if (msg.type === "ask") {
       if (!isTop) return false;
       maybeMount();
+      const proposal = {
+        ...phraseAgentCommand(msg.ask.command, msg.ask.cwd),
+        payload: { command: msg.ask.command, cwd: msg.ask.cwd, askId: msg.ask.id }
+      };
       controller.dispatch({
         type: "propose",
         force: true,
-        proposal: {
-          ...phraseAgentCommand(msg.ask.command, msg.ask.cwd),
-          payload: { command: msg.ask.command, cwd: msg.ask.cwd, askId: msg.ask.id }
-        }
+        proposal
       });
     }
     return false;

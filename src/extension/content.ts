@@ -170,13 +170,14 @@ chrome.runtime.onMessage.addListener((raw) => {
   if (msg.type === "ask") {
     if (!isTop) return false;
     maybeMount();
+    const proposal = {
+      ...phraseAgentCommand(msg.ask.command, msg.ask.cwd),
+      payload: { command: msg.ask.command, cwd: msg.ask.cwd, askId: msg.ask.id },
+    };
     controller.dispatch({
       type: "propose",
       force: true,
-      proposal: {
-        ...phraseAgentCommand(msg.ask.command, msg.ask.cwd),
-        payload: { command: msg.ask.command, cwd: msg.ask.cwd, askId: msg.ask.id },
-      },
+      proposal,
     });
   }
   return false;

@@ -6,6 +6,9 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
@@ -30,6 +33,118 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+// src/lib/risk.ts
+function clipCommand(command, max = 72) {
+  const clean = command.replace(/\s+/g, " ").trim();
+  if (clean.length <= max) return clean;
+  return `${clean.slice(0, max - 1)}\u2026`;
+}
+function classifyCommandTier(command) {
+  const line = command.replace(/\s+/g, " ").trim();
+  if (!line) return "medium";
+  if (CRITICAL.some((re) => re.test(line))) return "critical";
+  if (HIGH.some((re) => re.test(line))) return "high";
+  if (LOW_WHOLE.test(line) && !/[|&;]/.test(line)) return "low";
+  return "medium";
+}
+function heuristicBlurb(command, tier) {
+  const line = command.replace(/\s+/g, " ").trim();
+  if (!line) return "Empty command. Nothing runs until something concrete is waiting.";
+  if (/\brm\s+-[a-zA-Z]*[rf][a-zA-Z]*[rf]\b/i.test(line)) {
+    const target = line.replace(/^[\s\S]*?\brm\s+-[a-zA-Z]+\s+/i, "").trim() || "those paths";
+    return `This would recursively delete ${clipCommand(target, 48)}.`;
+  }
+  if (/\bgit\s+push\b/i.test(line) && /--force-with-lease|--force|-f\b/.test(line)) {
+    return "This would overwrite remote git history.";
+  }
+  if (/\bgit\s+reset\b[\s\S]*--hard\b/i.test(line)) {
+    return "This would throw away uncommitted work.";
+  }
+  if (/\b(npm|pnpm|yarn|poetry|twine|gem|cargo)\s+publish\b/i.test(line)) {
+    return "This would publish a package to a public registry.";
+  }
+  if (/\b(shutdown|reboot|halt|poweroff)\b/i.test(line)) {
+    return "This would shut the machine down.";
+  }
+  if (/\bdrop\s+(database|schema|table|db)\b/i.test(line)) {
+    return "This would drop a database object.";
+  }
+  if (/\bkubectl\s+delete\b/i.test(line)) {
+    return "This would delete a Kubernetes object.";
+  }
+  if (/\bsudo\b/i.test(line)) {
+    return "This would run with elevated privileges.";
+  }
+  if (tier === "low") return `Looks like a read or print: ${clipCommand(line)}.`;
+  if (tier === "high") return `This can change files or remotes: ${clipCommand(line)}.`;
+  return `A command is waiting: ${clipCommand(line)}.`;
+}
+function rateCommand(command) {
+  const tier = classifyCommandTier(command);
+  return {
+    tier,
+    holdMs: HOLD_BY_TIER[tier],
+    blurb: heuristicBlurb(command, tier),
+    engine: "heuristic",
+    note: "Local heuristic. The model has not rewritten this line yet."
+  };
+}
+function formatRiskLine(rating) {
+  return `${rating.tier.toUpperCase()} \xB7 ${secondsLabel(rating.holdMs)} hold \xB7 ${rating.blurb}`;
+}
+function secondsLabel(ms) {
+  return `${(ms / 1e3).toFixed(1).replace(/\.0$/, "")}s`;
+}
+var HOLD_BY_TIER, CRITICAL, HIGH, LOW_WHOLE;
+var init_risk = __esm({
+  "src/lib/risk.ts"() {
+    "use strict";
+    HOLD_BY_TIER = {
+      low: 800,
+      medium: 1200,
+      high: 1800,
+      critical: 2400
+    };
+    CRITICAL = [
+      /\brm\s+-[a-zA-Z]*r[a-zA-Z]*f\b/i,
+      /\brm\s+-[a-zA-Z]*f[a-zA-Z]*r\b/i,
+      /\bdd\b[\s\S]*\bif=/i,
+      /\bmkfs\b/i,
+      /\bwipefs\b/i,
+      /\b(shutdown|reboot|halt|poweroff)\b/i,
+      /\bdrop\s+(database|schema|table|db)\b/i,
+      /\bgit\s+push\b[\s\S]*(--force-with-lease|--force|-f\b)/i,
+      /\bgit\s+reset\b[\s\S]*--hard\b/i,
+      /\bkubectl\s+delete\b/i,
+      /\b(npm|pnpm|yarn|poetry|twine|gem|cargo)\s+publish\b/i,
+      /\bnpm\s+unpublish\b/i,
+      /\bchmod\s+-R\s+777\s+\//i,
+      /\bdiskutil\s+erase/i,
+      /\bterraform\s+destroy\b/i,
+      /\bfind\b[\s\S]*\s-delete\b/i,
+      /\bdocker\s+system\s+prune\b/i
+    ];
+    HIGH = [
+      /\bsudo\b/i,
+      /\brm\b/i,
+      /\bgit\s+push\b/i,
+      /\bgit\s+reset\b/i,
+      /\bgit\s+checkout\s+\./i,
+      /\b(delete|unlink|truncate)\b/i,
+      /\bkill\s+-9\b/i,
+      /\b(chmod|chown)\b/i,
+      /\bnpm\s+uninstall\s+-g\b/i,
+      /\bdocker\s+rm\b/i,
+      /\bhelm\s+uninstall\b/i,
+      /\bmv\b[\s\S]*\/dev\/null/i,
+      /\b(curl|wget)\b[\s\S]*\|\s*(sudo\s+)?(ba)?sh\b/i,
+      /\bcat\b[\s\S]*(\.env|id_rsa|id_ed25519|\.ssh\/)/i,
+      /\bgit\s+show\b[\s\S]*\.env/i
+    ];
+    LOW_WHOLE = /^(echo|ls|pwd|whoami|date|true|false|hostname|uname|which|type|git\s+(status|diff|log|branch)|npm\s+(test|run)|pnpm\s+(test|run)|yarn\s+(test|run)|node\s+-(-version|v)|python3?\s+-(-version|V))(\s|$)/i;
+  }
+});
 
 // node_modules/ws/lib/constants.js
 var require_constants = __commonJS({
@@ -3714,6 +3829,163 @@ var require_websocket_server = __commonJS({
   }
 });
 
+// src/lib/vtt.ts
+var init_vtt = __esm({
+  "src/lib/vtt.ts"() {
+    "use strict";
+  }
+});
+
+// src/lib/summarize.ts
+function splitSentences(text) {
+  return text.replace(/\s+/g, " ").split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter((s) => s.length > 0);
+}
+async function loadGemma() {
+  if (typeof window === "undefined") return null;
+  const gpu = navigator.gpu;
+  if (!gpu) return null;
+  if (gemmaPromise) return gemmaPromise;
+  gemmaPromise = (async () => {
+    try {
+      const adapter = await gpu.requestAdapter();
+      if (!adapter) return null;
+      const webllm = await import("@mlc-ai/web-llm");
+      const engine = await webllm.CreateMLCEngine(GEMMA_ID, {
+        initProgressCallback: () => void 0
+      });
+      return engine;
+    } catch {
+      return null;
+    }
+  })();
+  return gemmaPromise;
+}
+async function loadDistilbart() {
+  if (t5Promise) return t5Promise;
+  t5Promise = (async () => {
+    try {
+      const { pipeline } = await import("@huggingface/transformers");
+      const pipe = await pipeline("summarization", DISTILBART_ID);
+      return async (text, opts) => {
+        const out = await pipe(text.slice(0, 2500), {
+          max_length: opts?.maxLength ?? 90,
+          min_length: opts?.minLength ?? 28
+        });
+        const first = Array.isArray(out) ? out[0] : out;
+        const rec = first;
+        return (rec.summary_text ?? rec.generated_text ?? "").trim();
+      };
+    } catch {
+      return null;
+    }
+  })();
+  return t5Promise;
+}
+function firstSentence(text) {
+  const sentences = splitSentences(text);
+  return (sentences[0] ?? text).replace(/\s+/g, " ").trim();
+}
+async function oneLineCommand(command, seed, opts = {}) {
+  const started = nowMs();
+  const allow = opts.allowRemoteWeights !== false;
+  const fallback = (seed || `A command is waiting: ${command}`).replace(/\s+/g, " ").trim();
+  if (allow) {
+    const gemma = await loadGemma();
+    if (gemma) {
+      try {
+        const reply = await gemma.chat.completions.create({
+          messages: [
+            {
+              role: "system",
+              content: "In one short sentence, say what this shell command would do if it ran. Do not approve it. No lists. No flourish."
+            },
+            { role: "user", content: command.slice(0, 500) || "empty command" }
+          ],
+          max_tokens: 60,
+          temperature: 0.1
+        });
+        const text = firstSentence(reply.choices[0]?.message?.content ?? fallback);
+        if (text.length >= 12 && !/i (cannot|can't|am unable)/i.test(text)) {
+          return {
+            text,
+            engine: "gemma-webllm",
+            latencyMs: nowMs() - started,
+            note: "Gemma 2 2B IT wrote this one-liner on-device through WebLLM."
+          };
+        }
+      } catch {
+      }
+    }
+    const neural = await loadDistilbart();
+    if (neural) {
+      try {
+        const raw = await Promise.race([
+          neural(`${fallback} Pending shell command: ${command}`, { maxLength: 48, minLength: 10 }),
+          new Promise((_, reject) => {
+            setTimeout(() => reject(new Error("distilbart-timeout")), 3e4);
+          })
+        ]);
+        const text = firstSentence(raw || fallback);
+        if (text.length >= 12 && !/i (cannot|can't|am unable)/i.test(text)) {
+          return {
+            text,
+            engine: "distilbart",
+            latencyMs: nowMs() - started,
+            note: "Gemma could not run here (no WebGPU). DistilBART-CNN-6-6 wrote this one-liner locally."
+          };
+        }
+      } catch {
+      }
+    }
+  }
+  return {
+    text: fallback,
+    engine: "extractive",
+    latencyMs: nowMs() - started,
+    note: allow ? "Gemma and DistilBART did not run. The heuristic line stayed." : "Heuristic line forced for tests."
+  };
+}
+function nowMs() {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+var GEMMA_ID, DISTILBART_ID, gemmaPromise, t5Promise;
+var init_summarize = __esm({
+  "src/lib/summarize.ts"() {
+    "use strict";
+    init_vtt();
+    GEMMA_ID = "gemma-2-2b-it-q4f16_1-MLC";
+    DISTILBART_ID = "Xenova/distilbart-cnn-6-6";
+    gemmaPromise = null;
+    t5Promise = null;
+  }
+});
+
+// src/lib/risk-model.ts
+var risk_model_exports = {};
+__export(risk_model_exports, {
+  rateCommandWithModel: () => rateCommandWithModel
+});
+async function rateCommandWithModel(command, opts = {}) {
+  const base = rateCommand(command);
+  const model = await oneLineCommand(command, base.blurb, opts);
+  if (model.engine === "extractive") return base;
+  const blurb = model.text.replace(/\s+/g, " ").trim();
+  if (blurb.length < 12) return base;
+  return {
+    ...base,
+    blurb,
+    engine: model.engine,
+    note: model.note
+  };
+}
+var init_risk_model = __esm({
+  "src/lib/risk-model.ts"() {
+    "use strict";
+    init_risk();
+    init_summarize();
+  }
+});
+
 // src/bridge/cli.ts
 var cli_exports = {};
 __export(cli_exports, {
@@ -3750,6 +4022,9 @@ function makeAsk(command, cwd, timeoutMs = DEFAULT_TIMEOUT_MS) {
     createdAt: Date.now()
   };
 }
+
+// src/bridge/cli.ts
+init_risk();
 
 // src/bridge/server.ts
 var import_node_http = require("node:http");
@@ -3879,7 +4154,8 @@ function help() {
   lazyhands approve [--timeout 90] -- <command>
 
 The approve command waits for a held thumbs-up from the Lazy Hands extension
-or the web player. A held palm, or a timeout, refuses and the command does not run.
+or the web player. A one-line local risk rating prints first. Higher risk
+needs a longer hold. A held palm, or a timeout, refuses and the command does not run.
 `;
 }
 function parseArgs(argv) {
@@ -3979,9 +4255,17 @@ async function main(argv = process.argv) {
     }
     await ensureServer(port);
     const line = rest.join(" ");
+    const rating = rateCommand(line);
     process.stdout.write(`Waiting for a thumbs-up to run:
   ${line}
+  ${formatRiskLine(rating)}
 `);
+    void Promise.resolve().then(() => (init_risk_model(), risk_model_exports)).then(({ rateCommandWithModel: rateCommandWithModel2 }) => rateCommandWithModel2(line)).then((next) => {
+      if (next.engine !== "heuristic") {
+        process.stdout.write(`  ${formatRiskLine(next)}
+`);
+      }
+    }).catch(() => void 0);
     const answer = await approveRemote(port, line, process.cwd(), timeoutMs);
     if (answer.decision !== "approved") {
       process.stderr.write(`Refused (${answer.decision}). Command not run.

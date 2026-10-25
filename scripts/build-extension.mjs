@@ -18,6 +18,7 @@ await esbuild.build({
   format: "iife",
   platform: "browser",
   target: "chrome114",
+  external: ["@huggingface/transformers", "@mlc-ai/web-llm"],
   logLevel: "info",
 });
 
@@ -30,6 +31,7 @@ await esbuild.build({
   platform: "node",
   target: "node20",
   banner: { js: "#!/usr/bin/env node" },
+  external: ["@huggingface/transformers", "@mlc-ai/web-llm"],
   logLevel: "info",
 });
 

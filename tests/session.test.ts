@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { phraseProposal } from "@/lib/proposals";
+import { phraseAgentCommand, phraseProposal } from "@/lib/proposals";
+import { HOLD_BY_TIER } from "@/lib/risk";
 import {
   HOLD_MS,
   PALM_PULSE_MS,
   holdProgress,
   initialSession,
   reduceSession,
+  requiredHoldMs,
 } from "@/lib/session";
 
 function step(
@@ -87,6 +89,17 @@ describe("watching vs approval_pending", () => {
     const sw = step(s, { type: "swipe", dir: "right" }, 20);
     expect(sw.state.mode).toBe("approval_pending");
     expect(sw.effects.some((e) => e.type === "seek" && e.seconds === 10)).toBe(true);
+  });
+});
+
+describe("critical hold", () => {
+  it("does not approve a force-push at the low-risk hold length", () => {
+    const proposal = phraseAgentCommand("git push --force origin main", "/workspace");
+    expect(requiredHoldMs(proposal)).toBe(HOLD_BY_TIER.critical);
+    let s = reduceSession(initialSession(0), { type: "propose", proposal, force: true }, 1).state;
+    const short = reduceSession(s, { type: "pose", pose: "thumbs_up", dt: HOLD_MS }, 10);
+    expect(short.effects.some((e) => e.type === "apply_proposal")).toBe(false);
+    expect(holdProgress(short.state)).toBeLessThan(1);
   });
 });
 

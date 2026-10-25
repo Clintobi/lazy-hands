@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { HoldRing } from "@/components/hold-ring";
-import { holdHint, onceHint } from "@/lib/overlay-copy";
+import { approvalKicker, holdHint, onceHint } from "@/lib/overlay-copy";
 import type { PublicController } from "@/lib/video-controller";
 import type { Proposal } from "@/lib/proposals";
 
@@ -57,14 +57,21 @@ function ApprovalCard({
   intent: "approve" | "reject" | null;
 }) {
   return (
-    <article className="approval-card pointer-events-auto" data-testid="approval-card" data-kind={proposal.kind}>
+    <article
+      className="approval-card pointer-events-auto"
+      data-testid="approval-card"
+      data-kind={proposal.kind}
+      data-risk={proposal.riskTier ?? (proposal.destructive ? "high" : "low")}
+    >
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="font-display text-[11px] uppercase tracking-[0.22em] text-[var(--brass)]">
-            {proposal.source === "bridge" ? "A command waits" : proposal.destructive ? "Hold to confirm" : "The model asks"}
+            {approvalKicker(proposal)}
           </p>
           <h2 className="mt-1 font-display text-[1.35rem] leading-7 italic">{proposal.title}</h2>
-          <p className="mt-1 max-w-xl text-[13px] leading-5 text-[var(--ink)]/80">{proposal.detail}</p>
+          <p className="mt-1 max-w-xl text-[13px] leading-5 text-[var(--ink)]/80">
+            {proposal.riskBlurb ?? proposal.detail}
+          </p>
           <p className="mt-2 text-[11px] text-[var(--walnut)]">{holdHint(proposal)}</p>
         </div>
         <HoldRing progress={progress} intent={intent} />

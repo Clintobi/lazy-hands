@@ -1,3 +1,5 @@
+import { formatAgentDetail, rateCommand, ratePageLabel, type RiskEngine, type RiskTier } from "./risk";
+
 export const ACTION_KINDS = [
   "skip_intro",
   "bookmark",
@@ -20,6 +22,10 @@ export type Proposal = {
   payload: Record<string, unknown>;
   source: ProposalSource;
   destructive: boolean;
+  holdMs?: number;
+  riskTier?: RiskTier;
+  riskBlurb?: string;
+  riskEngine?: RiskEngine;
 };
 
 export type ProposalContext = {
@@ -111,35 +117,42 @@ export function phraseProposal(kind: ActionKind, ctx: Partial<ProposalContext> =
 }
 
 export function phraseAgentCommand(command: string, cwd: string): Proposal {
+  const risk = rateCommand(command);
   return {
     id: id("agent_command"),
     kind: "agent_command",
     source: "bridge",
-    destructive: looksDestructiveCommand(command),
-    title: "Run this command?",
-    detail: cwd ? `${command} · ${cwd}` : command,
-    payload: { command, cwd },
+    destructive: risk.tier === "high" || risk.tier === "critical",
+    title: risk.tier === "critical" ? "Hold longer to run this?" : "Run this command?",
+    detail: formatAgentDetail(command, cwd, risk),
+    payload: { command, cwd, riskTier: risk.tier, holdMs: risk.holdMs },
+    holdMs: risk.holdMs,
+    riskTier: risk.tier,
+    riskBlurb: risk.blurb,
+    riskEngine: risk.engine,
   };
 }
 
 export function phrasePageConfirm(label: string, selector = "", destructive = false): Proposal {
+  const risk = ratePageLabel(label, destructive);
   return {
     id: id("page_confirm"),
     kind: "page_confirm",
     source: "page",
     destructive,
     title: destructive ? `Hold to confirm: ${label}` : `${label}?`,
-    detail: destructive
-      ? "This looks like it could change something. A flick will not click it."
-      : "A held thumb clicks the button. A held palm leaves it alone.",
-    payload: { label, selector, destructive },
+    detail: risk.blurb,
+    payload: { label, selector, destructive, riskTier: risk.tier, holdMs: risk.holdMs },
+    holdMs: risk.holdMs,
+    riskTier: risk.tier,
+    riskBlurb: risk.blurb,
+    riskEngine: risk.engine,
   };
 }
 
 export function looksDestructiveCommand(command: string): boolean {
-  return /\b(rm|sudo|dd|mkfs|shutdown|reboot|drop|delete|reset --hard|push --force|npm publish|kubectl delete)\b/i.test(
-    command,
-  );
+  const tier = rateCommand(command).tier;
+  return tier === "high" || tier === "critical";
 }
 
 export function pickProposal(ctx: ProposalContext): Proposal | null {
