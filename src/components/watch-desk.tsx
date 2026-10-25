@@ -6,6 +6,7 @@ import { bindHtmlVideo } from "@/lib/bind-video";
 import { parseBridgeMessage, wsUrl, type BridgeAsk } from "@/lib/bridge-protocol";
 import { cuesFromTextTracks } from "@/lib/page-captions";
 import { phraseAgentCommand } from "@/lib/proposals";
+import { rateCommandWithModel } from "@/lib/risk-model";
 import { VideoController, type PublicController } from "@/lib/video-controller";
 
 function bindVideo(el: HTMLVideoElement) {
@@ -49,6 +50,9 @@ export function WatchDesk() {
     const proposal = phraseAgentCommand(command, "/workspace");
     proposal.payload.askId = `local-${Date.now()}`;
     ctlRef.current.dispatch({ type: "propose", proposal, force: true });
+    void rateCommandWithModel(command).then((rating) => {
+      ctlRef.current.applyRiskBlurb(proposal, rating);
+    });
     setPending({
       type: "ask",
       id: String(proposal.payload.askId),
@@ -57,7 +61,8 @@ export function WatchDesk() {
       timeoutMs: 90000,
       createdAt: Date.now(),
     });
-    setTerm(`$ lazyhands approve -- ${command}\nWaiting for a thumbs-up to run:\n  ${command}`);
+    const risk = proposal.riskBlurb ? `\n  ${proposal.riskTier?.toUpperCase()} · ${proposal.riskBlurb}` : "";
+    setTerm(`$ lazyhands approve -- ${command}\nWaiting for a thumbs-up to run:\n  ${command}${risk}`);
   }, []);
 
   useEffect(() => {
@@ -133,14 +138,19 @@ export function WatchDesk() {
         const askMsg = message.type === "ask" ? message : message.pending;
         if (!askMsg) return;
         setPending(askMsg);
-        setTerm(`$ lazyhands approve -- ${askMsg.command}\nWaiting for a thumbs-up to run:\n  ${askMsg.command}`);
+        const proposal = {
+          ...phraseAgentCommand(askMsg.command, askMsg.cwd),
+          payload: { command: askMsg.command, cwd: askMsg.cwd, askId: askMsg.id },
+        };
+        const risk = proposal.riskBlurb ? `\n  ${proposal.riskTier?.toUpperCase()} · ${proposal.riskBlurb}` : "";
+        setTerm(`$ lazyhands approve -- ${askMsg.command}\nWaiting for a thumbs-up to run:\n  ${askMsg.command}${risk}`);
         ctlRef.current.dispatch({
           type: "propose",
           force: true,
-          proposal: {
-            ...phraseAgentCommand(askMsg.command, askMsg.cwd),
-            payload: { command: askMsg.command, cwd: askMsg.cwd, askId: askMsg.id },
-          },
+          proposal,
+        });
+        void rateCommandWithModel(askMsg.command).then((rating) => {
+          ctlRef.current.applyRiskBlurb(proposal, rating);
         });
       }
       if (message?.type === "answer") {

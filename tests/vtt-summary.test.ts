@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { pickProposal, phraseProposal, resetProposalIds } from "@/lib/proposals";
 import { applyProposal, emptySandbox } from "@/lib/sandbox";
-import { extractiveSummary, isUsableSummary, summariseCues } from "@/lib/summarize";
+import { extractiveSummary, isUsableSummary, oneLineCommand, summariseCues } from "@/lib/summarize";
 import { cuesInRange, parseVtt } from "@/lib/vtt";
 
 describe("vtt", () => {
@@ -30,6 +30,16 @@ describe("extractive summary", () => {
 
   it("admits when a gap has no captions", () => {
     expect(extractiveSummary("")).toMatch(/no captions/i);
+  });
+
+  it("keeps the heuristic command line when models are forced off", async () => {
+    const result = await oneLineCommand(
+      "git push --force origin main",
+      "This would overwrite remote git history.",
+      { allowRemoteWeights: false },
+    );
+    expect(result.engine).toBe("extractive");
+    expect(result.text).toMatch(/overwrite remote git history/);
   });
 
   it("rejects a model refusal as unusable", () => {

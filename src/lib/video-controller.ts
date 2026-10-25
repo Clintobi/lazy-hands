@@ -2,6 +2,7 @@ import { applyProposal, emptySandbox, recordLog, type Sandbox } from "./sandbox"
 import { harvestCaptions, type CaptionSource } from "./page-captions";
 import { pickMainVideo, type VideoShape } from "./find-video";
 import { pickProposal, type ActionKind, type Proposal } from "./proposals";
+import { formatAgentDetail, type RiskRating } from "./risk";
 import {
   holdProgress,
   initialSession,
@@ -114,6 +115,20 @@ export class VideoController {
       logCount: this.sandbox.log.length,
       videoId: this.video?.id,
     };
+  }
+
+  refresh() {
+    this.emit();
+  }
+
+  applyRiskBlurb(proposal: Proposal, rating: RiskRating) {
+    if (this.session.approval?.proposal.id !== proposal.id) return proposal;
+    const command = String(proposal.payload.command ?? "");
+    proposal.riskBlurb = rating.blurb;
+    proposal.riskEngine = rating.engine;
+    proposal.detail = formatAgentDetail(command, String(proposal.payload.cwd ?? ""), rating);
+    this.emit();
+    return proposal;
   }
 
   private apply(effects: SessionEffect[]) {

@@ -31,6 +31,7 @@ test.describe("any page + approval bridge", () => {
 
     await page.evaluate(() => window.__lazyHands?.ask?.("echo ship-it"));
     await expect(page.getByTestId("approval-card")).toContainText(/Run this command/);
+    await expect(page.getByTestId("approval-card")).toContainText(/Low · 0\.8s hold/);
     await expect(page.getByTestId("bridge-term")).toContainText(/Waiting for a thumbs-up/);
     await page.evaluate(() => window.__lazyHands?.pose("thumbs_up", 400));
     await page.screenshot({ path: "docs/screenshots/bridge-waiting-1280.png", fullPage: false });

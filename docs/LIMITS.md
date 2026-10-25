@@ -23,9 +23,10 @@ Honest edges, not a brochure.
 ## Approvals
 
 - One proposal at a time. A new ask waits until you approve, refuse, or the current card times out.
-- Approve and refuse need an 800 ms hold. A flick cannot buy an action.
+- Approve and refuse need a held pose. A flick cannot buy an action.
+- Hold length follows risk: 800 ms for low-risk player asks and `echo`/`git status`, 1200 ms for unknown commands, 1800 ms for high risk (`git push`, `sudo`), 2400 ms for critical (`rm -rf`, `git push --force`, `npm publish`). Timeout or palm still refuses.
 - Player actions stay sandboxed: seek, captions, bookmarks, notes, a local recap.
-- Agent commands run only after a held thumb on the local bridge. The default is refuse (palm or timeout).
+- Agent commands run only after a held thumb on the local bridge. The default is refuse (palm or timeout). A one-line local risk blurb prints before the thumb. The heuristic owns the tier. Gemma or DistilBART may rewrite the sentence; they never auto-allow.
 - Page confirm buttons are offered only when the matcher is sure. Chat Send is ignored. Yes, OK, and cookie Accept stay ignored unless they sit in a dialog. Destructive labels still need a hold. Nothing is clicked without that hold.
 - Agent asks from the CLI show on the focused Chrome tab (or on `/watch` if that page is open). The bridge listens on 127.0.0.1 only.
 

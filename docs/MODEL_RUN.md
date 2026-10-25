@@ -8,6 +8,8 @@ This is not the extractive fallback. It is a live transformers.js inference on t
 - WebGPU adapter: no
 - Gemma 2 2B via WebLLM: did not run. Headless Chromium in this VM has no WebGPU adapter, even with `--enable-unsafe-webgpu` and SwiftShader. MLC has no shader path to compile.
 
+Command risk one-liners use the same engine order: Gemma via WebLLM, then DistilBART, then the heuristic sentence in `src/lib/risk.ts`. The heuristic always owns the tier and the hold. This VM still cannot start Gemma, so a live command rewrite would be DistilBART or the heuristic. Unit tests force the heuristic path.
+
 ## What ran
 
 - Engine: DistilBART-CNN-6-6 (`Xenova/distilbart-cnn-6-6`)

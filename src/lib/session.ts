@@ -1,4 +1,5 @@
 import type { Proposal } from "./proposals";
+import { HOLD_BY_TIER } from "./risk";
 
 export const PALM_PULSE_MS = 180;
 export const HOLD_MS = 800;
@@ -78,9 +79,18 @@ export function initialSession(now = 0): SessionState {
   };
 }
 
+export function requiredHoldMs(proposal: Proposal | null | undefined): number {
+  if (!proposal) return HOLD_MS;
+  if (typeof proposal.holdMs === "number" && Number.isFinite(proposal.holdMs) && proposal.holdMs >= HOLD_MS) {
+    return proposal.holdMs;
+  }
+  if (proposal.destructive) return HOLD_BY_TIER.high;
+  return HOLD_MS;
+}
+
 export function holdProgress(state: SessionState): number {
   if (state.mode !== "approval_pending" || !state.approval?.hold) return 0;
-  return Math.min(1, state.approval.hold.ms / HOLD_MS);
+  return Math.min(1, state.approval.hold.ms / requiredHoldMs(state.approval.proposal));
 }
 
 export function reduceSession(
@@ -240,7 +250,7 @@ export function reduceSession(
         next.approval.hold.ms += event.dt;
       }
 
-      if (next.approval.hold.ms >= HOLD_MS) {
+      if (next.approval.hold.ms >= requiredHoldMs(next.approval.proposal)) {
         const proposal = next.approval.proposal;
         const holdMs = next.approval.hold.ms;
         const entry: ApprovalLogEntry = {
